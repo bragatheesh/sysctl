@@ -1,0 +1,9 @@
+Design an interface to /proc/sys that uses sockets
+to modify and/or poll system parameters by our DPDK applications.
+
+The program will feature the ability to register a command which will
+a directory key within the application to its corresponding directory 
+on the system. 
+
+Passing this registered key into either read or write functions will
+enable the user to manipulate the data from /proc/sys.
