@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "uthash.h"
+#include <fcntl.h>
 
 typedef struct command{
 	char* name;		//name of our command, also used as key for our hashtable
@@ -23,7 +24,7 @@ register_command(char* name, char* dir, int write, char* data){
 
 	HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
 	if (c != NULL) {
-		printf("Error, command %s has already been registered.\n", name);
+		printf("Error: command %s has already been registered.\n", name);
 		return -1;
 	}
 
@@ -39,15 +40,57 @@ register_command(char* name, char* dir, int write, char* data){
 	return 0;
 }
 
+
 int
 list_commands(){
 	/*here we can list all the commands we have registered*/
+	
+	command *c;
+
+	for(c = hash_commands; c != NULL; c= c->hh.next){
+		printf("name: %s, dir: %s, write: %d, data: %s\n", c->name, c->dir, c->write, c->data);
+	}	
+	
 	return 0;
 }
 
 int
-execute_command(){
+execute_command(char* name){
 	/*here we can either read or write to the dir*/
+	
+	command *c;
+	char line[1];
+	
+	HASH_FIND_STR(hash_commands, name, c);
+	
+	if(c == NULL){
+		printf("Error: No such command %s\n", name);
+		return -1;
+	}
+
+	if(c->write == 0){ //read
+		c->fp = fopen(c->dir, "r");
+		if(c->fp == NULL){
+			printf("Error opening file: %s\n", c->dir);
+			return -1;
+		}
+
+		c->data = NULL;
+
+		/*while(read(c->fp, line, 1024) != -1){
+			printf("%s", line);
+		}*/
+		while(fread(line, sizeof(line), 1, c->fp) == 1){
+			printf("%s", line);
+		}
+	
+		fclose(c->fp);
+	}
+
+	else{ //write
+		printf("write\n");
+	}
+
 	return 0;
 }
 
@@ -74,8 +117,11 @@ main(){
 
 	unsigned int num_users;
 	num_users = HASH_COUNT(hash_commands);
-	printf("there are %u users\n", num_users);
-	
+	printf("there are %u commands\n", num_users);
+
+	//list_commands();	
+
+	execute_command(name);
 
 	HASH_CLEAR(hh, hash_commands);
 
