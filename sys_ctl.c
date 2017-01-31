@@ -1,19 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "uthash.h"
-#include "sys_ctl.h"
 #include <fcntl.h>
-
-/*typedef struct command{
-	char* name;		//name of our command, also used as key for our hashtable
-	char* dir;		//holds the absolute directory
-	int write;		//boolean, 1 for write, 0 for read
-	char* data;		//holds the read data or the data that will be written
-	int sock;		//holds the socket to the dir (not_used)
-	FILE* fp;		//holds file pointer to the file
-	void* cb;		//hold pointer to callback function
-	UT_hash_handle hh;	//makes this structure hashable
-}command;*/
+#include "sys_ctl.h"
+#include "uthash.h"
 
 command *hash_commands = NULL;
 
