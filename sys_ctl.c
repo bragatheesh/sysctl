@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "uthash.h"
+#include "sys_ctl.h"
 #include <fcntl.h>
 
-typedef struct command{
+/*typedef struct command{
 	char* name;		//name of our command, also used as key for our hashtable
 	char* dir;		//holds the absolute directory
 	int write;		//boolean, 1 for write, 0 for read
@@ -12,7 +13,7 @@ typedef struct command{
 	FILE* fp;		//holds file pointer to the file
 	void* cb;		//hold pointer to callback function
 	UT_hash_handle hh;	//makes this structure hashable
-}command;
+}command;*/
 
 command *hash_commands = NULL;
 
@@ -114,7 +115,7 @@ main(){
 	char* name = "net.ipv4.icmp_echo_ignore_all";
 	char* dir = "/proc/sys/net/ipv4/icmp_echo_ignore_all";
 	int write = 1;
-	char* data = "0\n";
+	char* data = "1\n";
 	int ret;
 
 	ret = register_command(name, dir, write, data);
