@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+//#include <linux/notify.h>
 #include "sys_ctl.h"
 #include "uthash.h"
 
@@ -91,12 +94,39 @@ execute_command(char* name){
 	return 0;
 }
 
-int
-monitor_command(char* name){
+pthread_t
+monitor_command_init(char* name){
 	/*Here we will monitor a file to see if its value changes.
 	If a value does change, we will call the specified callback function*/
 	
-	return 0;
+	int ret = 0;
+	command *c;
+
+	HASH_FIND_STR(hash_commands, name, c);
+	if(c == NULL){
+		printf("Error: No such command %s\n", name);
+		return -1;
+	}
+	
+	ret = pthread_create(&(c->id), NULL, &monitor_command_execute, (void*)c);
+	if(ret != 0){
+		printf("Error creating thread for %s\n", c->name);
+		return -1;
+	}
+
+	return c->id;
+}
+
+
+void*
+monitor_command_execute(void* arg){
+	
+	command* c = (command*) arg;
+
+	printf("hello from command_execute: %s\n", c->name);
+	pthread_exit(NULL);
+
+	return NULL;
 }
 
 int
@@ -113,10 +143,10 @@ main(){
 	}
 	
 
-	ret = register_command(name, dir, write, data);	
+	/*ret = register_command(name, dir, write, data);	
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
-	}
+	}*/
 
 	unsigned int num_users;
 	num_users = HASH_COUNT(hash_commands);
@@ -127,6 +157,16 @@ main(){
 	ret = execute_command(name);
 	if(ret < 0){
 		printf("Error executing command: %s\n", name);
+	}
+
+	ret = monitor_command_init(name);
+	if(ret == NULL){
+		printf("Error in monitor init for command: %s\n", name);
+	}
+	else{
+		sleep(2);
+		//pthread_join(ret, NULL);
+		printf("Thread completed\n");
 	}
 	
 	HASH_CLEAR(hh, hash_commands);
