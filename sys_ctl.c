@@ -58,6 +58,7 @@ int
 execute_command(char* name){
 	/*here we can either read or write to the dir*/
 	
+	int ret = 0;
 	command *c;
 	char line[1];
 	
@@ -71,15 +72,10 @@ execute_command(char* name){
 	if(c->write == 0){ //read
 		c->fp = fopen(c->dir, "r");
 		if(c->fp == NULL){
-			printf("Error opening file: %s\n", c->dir);
+			printf("Error opening file to read: %s\n", c->dir);
 			return -1;
 		}
 
-		c->data = NULL;
-
-		/*while(read(c->fp, line, 1024) != -1){
-			printf("%s", line);
-		}*/
 		while(fread(line, sizeof(line), 1, c->fp) == 1){
 			printf("%s", line);
 		}
@@ -88,7 +84,18 @@ execute_command(char* name){
 	}
 
 	else{ //write
-		printf("write\n");
+		c->fp = fopen(c->dir, "w");
+		if(c->fp == NULL){
+			printf("Error opening file to write: %s\n", c->dir);
+			return -1;
+		}
+
+		ret = fwrite(c->data, 1, sizeof(c->data), c->fp);
+		if(ret != sizeof(c->data)){
+			printf("Error: size of data written does not match size of data\n");
+		}
+
+		//write(c->fp, c->data, strlen(c->data));
 	}
 
 	return 0;
@@ -100,8 +107,8 @@ int
 main(){
 	char* name = "net.ipv4.icmp_echo_ignore_all";
 	char* dir = "/proc/sys/net/ipv4/icmp_echo_ignore_all";
-	int write = 0;
-	char* data = "";
+	int write = 1;
+	char* data = "0\n";
 	int ret;
 
 	ret = register_command(name, dir, write, data);
@@ -119,7 +126,7 @@ main(){
 	num_users = HASH_COUNT(hash_commands);
 	printf("there are %u commands\n", num_users);
 
-	//list_commands();	
+	list_commands();	
 
 	execute_command(name);
 
