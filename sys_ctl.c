@@ -1,16 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
-//#include <linux/notify.h>
+#include <linux/inotify.h>
 #include "sys_ctl.h"
 #include "uthash.h"
 
 command *hash_commands = NULL;
 
 int
-register_command(char* name, char* dir, int write, char* data){
+register_command(char* name, char* dir, int write, char* data, void* cb){
 	/*here we will register the key and initialize a socket to 
 	the respective directory*/
 	
@@ -28,7 +27,8 @@ register_command(char* name, char* dir, int write, char* data){
 	c->dir = dir;
 	c->write = write;
 	c->data = data;
-
+	c->id = NULL;
+	c->cb = cb;
 	HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
 	
 	return 0;
@@ -120,13 +120,63 @@ monitor_command_init(char* name){
 
 void*
 monitor_command_execute(void* arg){
-	
+	/*Here we will monitor the specified file for any changes
+	 Upon detecting a change, we will call the callback function*/
 	command* c = (command*) arg;
 
-	printf("hello from command_execute: %s\n", c->name);
+	int length, i = 0;
+      	int fd;
+	int wd;
+	int EVENT_SIZE = ( sizeof (struct inotify_event) );
+	int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+  	char buffer[EVENT_BUF_LEN];
+
+        fd = inotify_init();
+	if ( fd < 0 ) {
+		printf("Error: failed to init inotify");
+		pthread_exit(NULL);
+	}
+
+	wd = inotify_add_watch( fd, c->dir, IN_MODIFY);
+
+	length = read( fd, buffer, EVENT_BUF_LEN );
+
+	if(length < 0){
+		printf("Error detecting change in file\n");
+		pthread_exit(NULL);
+	}
+	else{
+	/*call calback function*/
+		printf("%s was modifed\n", c->name);
+		c->cb(c);
+	}
+
 	pthread_exit(NULL);
 
 	return NULL;
+}
+
+int
+monitor_command_wait(){
+	/*Here we will wait for all threads started by monitor_command_execute to finish*/
+	command *c;
+
+        for(c = hash_commands; c != NULL; c= c->hh.next){
+		if(c->id == NULL)
+			continue;
+		else{
+			pthread_join(c->id, NULL);
+			//printf("Thread: %s joined.\n", c->name);
+		}
+	}
+
+	return 0;
+}
+
+void
+callback_test(command *c){
+	printf("Callback function of %s\n", c->name);
+	return;
 }
 
 int
@@ -137,16 +187,16 @@ main(){
 	char* data = "1\n";
 	int ret;
 
-	ret = register_command(name, dir, write, data);
+	ret = register_command(name, dir, write, data,(void*)callback_test);
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
 	}
 	
 
-	/*ret = register_command(name, dir, write, data);	
+	ret = register_command("net.ipv4.tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", 0, "0", NULL);	
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
-	}*/
+	}
 
 	unsigned int num_users;
 	num_users = HASH_COUNT(hash_commands);
@@ -163,10 +213,9 @@ main(){
 	if(ret == NULL){
 		printf("Error in monitor init for command: %s\n", name);
 	}
+	
 	else{
-		sleep(2);
-		//pthread_join(ret, NULL);
-		printf("Thread completed\n");
+		monitor_command_wait();
 	}
 	
 	HASH_CLEAR(hh, hash_commands);

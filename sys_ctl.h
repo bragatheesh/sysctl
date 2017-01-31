@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "uthash.h"
-#include <fcntl.h>
+//#include <fcntl.h>
 #include <pthread.h>
 
 typedef struct command{
@@ -14,13 +14,13 @@ typedef struct command{
 	char* data;		//holds the data that will be written
 	int sock;		//holds the socket to the file dir (not used)
 	FILE* fp;		//holds file pointer to the file
-	void* cb;		//holds pointer to callback function
+	void (*cb)(void *);		//holds pointer to callback function
 	pthread_t id;		//holds pthread id for this command	
 	UT_hash_handle hh;	//makes this structure hashable
 }command;
 
 int
-register_command(char*, char*, int, char*);
+register_command(char*, char*, int, char*, void*);
 
 int
 list_command();
