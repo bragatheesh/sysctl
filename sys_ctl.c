@@ -148,7 +148,8 @@ monitor_command_execute(void* arg){
 	else{
 	/*call calback function*/
 		printf("%s was modifed\n", c->name);
-		c->cb(c);
+		if(c->cb != NULL)
+			c->cb(c);
 	}
 
 	pthread_exit(NULL);
@@ -213,6 +214,11 @@ main(){
 	if(ret == NULL){
 		printf("Error in monitor init for command: %s\n", name);
 	}
+
+        ret = monitor_command_init("net.ipv4.tcp_window_scaling");
+        if(ret == NULL){
+                printf("Error in monitor init for command: %s\n", name);
+        }
 	
 	else{
 		monitor_command_wait();
