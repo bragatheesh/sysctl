@@ -10,6 +10,7 @@ typedef struct command{
 	char* data;		//holds the read data or the data that will be written
 	int sock;		//holds the socket to the dir (not_used)
 	FILE* fp;		//holds file pointer to the file
+	void* cb;		//hold pointer to callback function
 	UT_hash_handle hh;	//makes this structure hashable
 }command;
 
@@ -42,7 +43,7 @@ register_command(char* name, char* dir, int write, char* data){
 
 
 int
-list_commands(){
+list_command(){
 	/*here we can list all the commands we have registered*/
 	
 	command *c;
@@ -95,13 +96,18 @@ execute_command(char* name){
 			printf("Error: size of data written does not match size of data\n");
 		}
 
-		//write(c->fp, c->data, strlen(c->data));
 	}
 
 	return 0;
 }
 
-
+int
+monitor_command(char* name){
+	/*Here we will monitor a file to see if its value changes.
+	If a value does change, we will call the specified callback function*/
+	
+	return 0;
+}
 
 int
 main(){
@@ -126,10 +132,13 @@ main(){
 	num_users = HASH_COUNT(hash_commands);
 	printf("there are %u commands\n", num_users);
 
-	list_commands();	
+	list_command();	
 
-	execute_command(name);
-
+	ret = execute_command(name);
+	if(ret < 0){
+		printf("Error executing command: %s\n", name);
+	}
+	
 	HASH_CLEAR(hh, hash_commands);
 
 	return 0;
