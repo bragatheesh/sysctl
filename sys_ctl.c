@@ -5,21 +5,65 @@
 #include <linux/inotify.h>
 #include "sys_ctl.h"
 #include "uthash.h"
+#include <rte_hash.h>
+#include <rte_common.h>
+#include <rte_vect.h>
+#include <rte_byteorder.h>
+#include <rte_log.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_memzone.h>
+#include <rte_eal.h>
+#include <rte_per_lcore.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_per_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_pci.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
+#include <rte_string_fns.h>
+#include <rte_cpuflags.h>
+//#include "/home/snaproute/workspace/softpath/src/dpdk/lib/librte_hash/rte_cuckoo_hash.h"
+//#include "/home/snaproute/workspace/softpath/src/dpdk/lib/librte_hash/rte_jhash.h"
 
 command *hash_commands = NULL;
 
 int
-register_command(char* name, char* dir, int write, char* data, void* cb){
+register_command(char* name, char* dir, int write, char* data, void* cb, struct rte_hash* hash){
 	/*here we will register the key and initialize a socket to 
 	the respective directory*/
-	
+	int ret;
 	command *c;
 
-	HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
+    if(sizeof(name) > (sizeof(char) * 16)){
+        printf("Error: name %s must be less than 16 chars\n", name);
+        return -1;
+    }
+
+    ret = rte_hash_lookup_data(hash, (const void*) name, (void**)c); //prev &s
+    if(c != NULL){
+		printf("Error: command %s has already been registered.\n", name);
+		return -1;
+    }
+
+
+	/*HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
 	if (c != NULL) {
 		printf("Error: command %s has already been registered.\n", name);
 		return -1;
-	}
+	}*/
 
 	c = malloc(sizeof(command));
 
@@ -29,8 +73,10 @@ register_command(char* name, char* dir, int write, char* data, void* cb){
 	c->data = data;
 	c->id = NULL;
 	c->cb = cb;
-	HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
+
+    //HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
 	
+    ret = rte_hash_add_key_data(hash, (const void*) name, (void*) c);
 	return 0;
 }
 
@@ -187,44 +233,34 @@ main(){
 	int write = 1;
 	char* data = "1\n";
 	int ret;
+	
+    struct rte_hash_parameters hash_params = {
+        .name = name,
+        .entries = 1024,
+        .hash_func_init_val = 0,
+        .key_len = (sizeof(char) * 16),
+        .socket_id = 0
+    };
+    
+    struct rte_hash* hash;
 
-	ret = register_command(name, dir, write, data,(void*)callback_test);
+    hash = rte_hash_create(&hash_params);
+    if(hash == NULL){
+        printf("Error creating hash table for %s\n", name);
+    }
+    
+    ret = register_command(name, dir, write, data,(void*)callback_test, hash);
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
 	}
 	
 
-	ret = register_command("net.ipv4.tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", 0, "0", NULL);	
+	ret = register_command("net.ipv4.tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", 0, "0", NULL, hash);	
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
 	}
 
-	unsigned int num_users;
-	num_users = HASH_COUNT(hash_commands);
-	printf("there are %u commands\n", num_users);
-
-	list_command();	
-
-	ret = execute_command(name);
-	if(ret < 0){
-		printf("Error executing command: %s\n", name);
-	}
-
-	ret = monitor_command_init(name);
-	if(ret == NULL){
-		printf("Error in monitor init for command: %s\n", name);
-	}
-
-        ret = monitor_command_init("net.ipv4.tcp_window_scaling");
-        if(ret == NULL){
-                printf("Error in monitor init for command: %s\n", name);
-        }
-	
-	else{
-		monitor_command_wait();
-	}
-	
-	HASH_CLEAR(hh, hash_commands);
+    rte_hash_free(hash);	
 
 	return 0;
 }
