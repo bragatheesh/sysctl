@@ -1,5 +1,7 @@
+#include <malloc_heap.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <linux/inotify.h>
@@ -35,24 +37,22 @@
 #include <rte_udp.h>
 #include <rte_string_fns.h>
 #include <rte_cpuflags.h>
-//#include "/home/snaproute/workspace/softpath/src/dpdk/lib/librte_hash/rte_cuckoo_hash.h"
-//#include "/home/snaproute/workspace/softpath/src/dpdk/lib/librte_hash/rte_jhash.h"
 
-command *hash_commands = NULL;
+struct command *hash_commands = NULL;
 
 int
-register_command(char* name, char* dir, int write, char* data, void* cb, struct rte_hash* hash){
-	/*here we will register the key and initialize a socket to 
-	the respective directory*/
+register_command(char* name, void* cb, struct flex_ctl* flex){
+	/*here we will register the command and place in the flexctl hash*/
 	int ret;
-	command *c;
+	struct command *c;
+    size_t cmd_len;
 
     if(sizeof(name) > (sizeof(char) * 16)){
         printf("Error: name %s must be less than 16 chars\n", name);
         return -1;
     }
 
-    ret = rte_hash_lookup_data(hash, (const void*) name, (void**)c); //prev &s
+    ret = rte_hash_lookup_data(flex->hash, (const void*) name, (void**)c); //prev &s
     if(c != NULL){
 		printf("Error: command %s has already been registered.\n", name);
 		return -1;
@@ -65,27 +65,27 @@ register_command(char* name, char* dir, int write, char* data, void* cb, struct 
 		return -1;
 	}*/
 
-	c = malloc(sizeof(command));
+	c = malloc(sizeof(struct command));
 
 	c->name = name;
-	c->dir = dir;
-	c->write = write;
-	c->data = data;
+    cmd_len = malloc(strlen(name) + strlen(flex->dir) + 2);
+    //char* tmp = malloc(cmd_len);
+    snprintf(c->dir, cmd_len,"%s/%s",flex->dir, name);
 	c->id = NULL;
 	c->cb = cb;
 
     //HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
 	
-    ret = rte_hash_add_key_data(hash, (const void*) name, (void*) c);
+    ret = rte_hash_add_key_data(flex->hash, (const void*) name, (void*) c);
 	return 0;
 }
 
-
+/*
 int
 list_command(){
-	/*here we can list all the commands we have registered*/
+	/*here we can list all the commands we have registered*
 	
-	command *c;
+	struct command *c;
 
 	for(c = hash_commands; c != NULL; c= c->hh.next){
 		printf("name: %s, dir: %s, write: %d, data: %s\n", c->name, c->dir, c->write, c->data);
@@ -96,10 +96,10 @@ list_command(){
 
 int
 execute_command(char* name){
-	/*here we can either read or write to the dir*/
+	/*here we can either read or write to the dir*
 	
 	int ret = 0;
-	command *c;
+	struct command *c;
 	char line[1];
 	
 	HASH_FIND_STR(hash_commands, name, c);
@@ -143,10 +143,10 @@ execute_command(char* name){
 pthread_t
 monitor_command_init(char* name){
 	/*Here we will monitor a file to see if its value changes.
-	If a value does change, we will call the specified callback function*/
+	If a value does change, we will call the specified callback function*
 	
 	int ret = 0;
-	command *c;
+	struct command *c;
 
 	HASH_FIND_STR(hash_commands, name, c);
 	if(c == NULL){
@@ -167,8 +167,8 @@ monitor_command_init(char* name){
 void*
 monitor_command_execute(void* arg){
 	/*Here we will monitor the specified file for any changes
-	 Upon detecting a change, we will call the callback function*/
-	command* c = (command*) arg;
+	 Upon detecting a change, we will call the callback function*
+	struct command* c = (struct command*) arg;
 
 	int length, i = 0;
       	int fd;
@@ -192,7 +192,7 @@ monitor_command_execute(void* arg){
 		pthread_exit(NULL);
 	}
 	else{
-	/*call calback function*/
+	/*call calback function*
 		printf("%s was modifed\n", c->name);
 		if(c->cb != NULL)
 			c->cb(c);
@@ -205,8 +205,8 @@ monitor_command_execute(void* arg){
 
 int
 monitor_command_wait(){
-	/*Here we will wait for all threads started by monitor_command_execute to finish*/
-	command *c;
+	/*Here we will wait for all threads started by monitor_command_execute to finish*
+	struct command *c;
 
         for(c = hash_commands; c != NULL; c= c->hh.next){
 		if(c->id == NULL)
@@ -219,46 +219,65 @@ monitor_command_wait(){
 
 	return 0;
 }
-
+*/
 void
-callback_test(command *c){
+callback_test(struct command *c){
 	printf("Callback function of %s\n", c->name);
 	return;
 }
 
 int
 main(){
-	char* name = "net.ipv4.icmp_echo_ignore_all";
-	char* dir = "/proc/sys/net/ipv4/icmp_echo_ignore_all";
-	int write = 1;
-	char* data = "1\n";
-	int ret;
-	
+	char* cmd_name = "command1";
+	void* cb = (void*)callback_test;
+
+
+    int ret;
+    struct rte_hash* hash;
+    
+    struct flex_ctl* flex;
+
     struct rte_hash_parameters hash_params = {
-        .name = name,
-        .entries = 1024,
+        .name = "temp",
+        .entries = 9,
         .hash_func_init_val = 0,
         .key_len = (sizeof(char) * 16),
         .socket_id = 0
     };
     
-    struct rte_hash* hash;
+    if(!rte_eal_has_hugepages()){
+        printf("NO HUGEPAGES\n\n\n\n");
+        return 0;
+    }
+
+    printf("numa nodes: %d MAX NODE: %d\n",malloc_get_numa_socket(),RTE_MAX_NUMA_NODES);
 
     hash = rte_hash_create(&hash_params);
     if(hash == NULL){
-        printf("Error creating hash table for %s\n", name);
+        printf("Error creating hash table for %s\n", cmd_name);
+        return -1;
     }
-    
-    ret = register_command(name, dir, write, data,(void*)callback_test, hash);
+
+    flex->hash = hash;
+    flex->desc = "Manages all flexswitch directories";
+    flex->base_dir = "/sys/proc/flex_ctl_";
+    flex->PID = "0"; //temp for test
+    flex->dir = malloc(strlen(flex->base_dir) + strlen(flex->PID) + 1);
+    strcpy(flex->dir, flex->base_dir);
+    strcat(flex->dir, flex->PID);
+    flex->num_cmds = 0;
+
+
+    ret = register_command(cmd_name, cb, flex);
 	if(ret < 0){
-		printf("Error registering command %s\n",name);
+		printf("Error registering command %s\n",cmd_name);
 	}
 	
 
-	ret = register_command("net.ipv4.tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", 0, "0", NULL, hash);	
+	/*ret = register_command("net.ipv4.tcp_window_scaling", "/proc/sys/net/ipv4/tcp_window_scaling", 0, "0", NULL, hash);	
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
-	}
+	}*/
 
     rte_hash_free(hash);	
 
