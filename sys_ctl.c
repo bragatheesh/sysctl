@@ -231,13 +231,23 @@ main(){
 	char* cmd_name = "command1";
 	void* cb = (void*)callback_test;
 
-
+    char my_name[16];
     int ret;
     struct rte_hash* hash;
     
     struct flex_ctl* flex;
+    
 
     struct rte_hash_parameters hash_params = {
+        .name = NULL,
+        .entries = (1024 * 1024 * 1),
+        .key_len = sizeof(my_name),
+        .hash_func_init_val = 0,
+    };
+
+
+
+    struct rte_hash_parameters hash_params_old = {
         .name = "temp",
         .entries = 9,
         .hash_func_init_val = 0,
@@ -251,6 +261,8 @@ main(){
     }
 
     printf("numa nodes: %d MAX NODE: %d\n",malloc_get_numa_socket(),RTE_MAX_NUMA_NODES);
+    
+    hash_params.name = cmd_name;
 
     hash = rte_hash_create(&hash_params);
     if(hash == NULL){
