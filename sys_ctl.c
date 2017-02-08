@@ -38,7 +38,7 @@
 #include <rte_string_fns.h>
 #include <rte_cpuflags.h>
 
-struct command *hash_commands = NULL;
+//struct command *hash_commands = NULL;
 
 int
 register_command(char* name, void* cb, struct flex_ctl* flex){
@@ -52,48 +52,118 @@ register_command(char* name, void* cb, struct flex_ctl* flex){
         return -1;
     }
 
-    ret = rte_hash_lookup_data(flex->hash, (const void*) name, (void**)c); //prev &s
+    /*ret = rte_hash_lookup_data(flex->hash, (const void*) name, (void**)c); //prev &s
     if(c != NULL){
 		printf("Error: command %s has already been registered.\n", name);
 		return -1;
-    }
+    }*/
 
 
-	/*HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
+	HASH_FIND_STR(flex->hash_commands, name, c);  //Check if command is already present in hash
 	if (c != NULL) {
 		printf("Error: command %s has already been registered.\n", name);
 		return -1;
-	}*/
+	}
 
 	c = malloc(sizeof(struct command));
 
 	c->name = name;
-    cmd_len = malloc(strlen(name) + strlen(flex->dir) + 2);
-    //char* tmp = malloc(cmd_len);
+    cmd_len = strlen(name) + strlen(flex->dir) + 2;
+    c->dir = malloc(sizeof(char) *(strlen(name) + strlen(flex->dir) + 2));
     snprintf(c->dir, cmd_len,"%s/%s",flex->dir, name);
-	c->id = NULL;
+    c->id = 0;
 	c->cb = cb;
-
-    //HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
-	
-    ret = rte_hash_add_key_data(flex->hash, (const void*) name, (void*) c);
+    c->data = "No Data";
+    HASH_ADD_KEYPTR(hh, flex->hash_commands, c->name, strlen(c->name), c);
+    
 	return 0;
 }
 
-/*
+
 int
-list_command(){
-	/*here we can list all the commands we have registered*
+list_command(struct flex_ctl* flex){
+	/*here we can list all the commands we have registered*/
 	
 	struct command *c;
 
-	for(c = hash_commands; c != NULL; c= c->hh.next){
-		printf("name: %s, dir: %s, write: %d, data: %s\n", c->name, c->dir, c->write, c->data);
+	for(c = flex->hash_commands; c != NULL; c= c->hh.next){
+		printf("name: %s, dir: %s, data: %s\n", c->name, c->dir, c->data);
 	}	
 	
 	return 0;
 }
 
+
+
+void*
+show(struct flex_ctl* flex, char* cmd_name){
+    struct command *c;
+    FILE* fp;     
+    char* buffer;
+    long size;
+    HASH_FIND_STR(flex->hash_commands, cmd_name, c);         
+    if(c == NULL){
+        printf("Error: No such command %s\n", cmd_name);
+        return NULL;
+    }
+    
+    fp = fopen(c->dir, "rb");
+    if(!fp){
+        printf("Error opening file: %s\n", c->dir);
+        return NULL;
+    }
+    
+    fseek(fp, 0L, SEEK_END);
+    size = ftell(fp);
+    rewind(fp);
+
+    buffer = calloc( 1, size+1 );
+    if(!buffer){
+        fclose(fp);
+        printf("Failed to allocate memory for buffer\n");
+        return NULL;
+    }
+
+    if(1 != fread(buffer, size, 1 , fp)){
+          fclose(fp);
+          free(buffer);
+          printf("File read failed\n");
+          return NULL;
+    }
+    
+    fclose(fp);
+    return (void*)buffer;
+}
+
+int
+set(struct flex_ctl* flex, char* cmd_name, int data){
+    struct command *c;
+    FILE* fp;     
+
+    HASH_FIND_STR(flex->hash_commands, cmd_name, c);
+    if(c == NULL){                         
+        printf("Error: No such command %s\n", cmd_name);
+        return -1;
+    }
+                    
+    fp = fopen(c->dir, "w");
+    //write file code here
+    fclose(fp);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 int
 execute_command(char* name){
 	/*here we can either read or write to the dir*
@@ -235,7 +305,7 @@ main(){
     int ret;
     struct rte_hash* hash;
     
-    struct flex_ctl* flex;
+    struct flex_ctl* flex = malloc(sizeof(struct flex_ctl));
     
 
     struct rte_hash_parameters hash_params = {
@@ -264,13 +334,14 @@ main(){
     
     hash_params.name = cmd_name;
 
-    hash = rte_hash_create(&hash_params);
-    if(hash == NULL){
+    //hash = rte_hash_create(&hash_params);
+    /*if(hash == NULL){
         printf("Error creating hash table for %s\n", cmd_name);
         return -1;
-    }
+    }*/
 
-    flex->hash = hash;
+    //flex->hash = hash;
+    flex->hash_commands = NULL;
     flex->desc = "Manages all flexswitch directories";
     flex->base_dir = "/sys/proc/flex_ctl_";
     flex->PID = "0"; //temp for test
@@ -290,7 +361,7 @@ main(){
 	if(ret < 0){
 		printf("Error registering command %s\n",name);
 	}*/
-
+    list_command(flex);
     rte_hash_free(hash);	
 
 	return 0;

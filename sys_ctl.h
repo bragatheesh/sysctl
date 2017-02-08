@@ -43,25 +43,24 @@ struct command{
 	FILE* fp;		        //holds file pointer to the file
 	void (*cb)(void *);     //holds pointer to callback function on trigger of file change
 	pthread_t id;           //holds pthread id for this command	
+    UT_hash_handle hh;
 };
 
 struct flex_ctl{
     struct rte_hash* hash;      // hash head
+    struct command* hash_commands;
     char* desc;                 // description of this daemon 
     char* base_dir;             // base file location ex. /sys/proc/
     char* dir;                  // actual dir of ctl ex: /sys/proc/flex_ctl_PID
     int num_cmds;               // number of commands
     char* PID;                    // PID of daemon process, append this to dir ex: /sys/proc/flex_ctl_PID
-    // func to print all the command that is availble under this hash
-
-
 };
 
 int
 register_command(char* name, void* cb, struct flex_ctl* flex);
 
 int
-list_command();
+list_command(struct flex_ctl* flex);
 
 int
 execute_command(char* name);
@@ -71,6 +70,13 @@ monitor_command_init(char* name);
 
 void*
 monitor_command_execute(void* arg);
+
+void*
+show(struct flex_ctl* flex, char* cmd_name);
+
+int
+set(struct flex_ctl* flex, char* cmd_name, int data);
+
 
 
 #endif /*__SYSCTL_H__ */
