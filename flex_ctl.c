@@ -10,26 +10,25 @@
 
 int
 main(void){
-    /*pid_t pid, sid;
+    pid_t pid, sid;
 
-      pid = fork();
-      if (pid < 0) {
-      exit(EXIT_FAILURE);
-      }
-      if (pid > 0) {
-      printf("PID: %d\n", pid);
-      exit(EXIT_SUCCESS);
-      }
+    pid = fork();
+    if (pid < 0) {
+        exit(EXIT_FAILURE);
+    }
+    if (pid > 0) {
+        printf("PID: %d\n", pid);
+        exit(EXIT_SUCCESS);
+    }
 
-      umask(0);
+    umask(0);
 
 
-      sid = setsid();
-      if (sid < 0) {
-      exit(EXIT_FAILURE);
-      }
+    sid = setsid();
+    if (sid < 0) {
+        exit(EXIT_FAILURE);
+    }
 
-*/
 
     if ((chdir("/")) < 0) {
         exit(EXIT_FAILURE);
@@ -52,9 +51,6 @@ main(void){
     fclose(f);
 
 
-    /*int EVENT_SIZE = (sizeof(struct inotify_event));
-    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
-    char buffer[EVENT_BUF_LEN];*/
     int fd = inotify_init();
     if(fd < 0){
         syslog(LOG_NOTICE, "flexctl: failed to init inotify");
@@ -65,11 +61,11 @@ main(void){
 
     syslog(LOG_NOTICE, "flexctl: entering while loop");
     while (1) {
-        
+
         int EVENT_SIZE = (sizeof(struct inotify_event));
         int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
         char buffer[EVENT_BUF_LEN];
-        
+
         length = read(fd, buffer, EVENT_BUF_LEN);
         if(length < 0){
             syslog(LOG_NOTICE, "flexct: error detecting change in file");
@@ -85,9 +81,9 @@ main(void){
             fseek(f, 0L, SEEK_END);
             fsize = ftell(f);
             rewind(f);
-            
+
             syslog(LOG_NOTICE, "fsize: %d", fsize);
-            
+
             rdbuff = calloc(1, fsize+1);            
             if(!rdbuff){
                 fclose(f);
