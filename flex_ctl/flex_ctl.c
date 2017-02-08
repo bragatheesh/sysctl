@@ -47,7 +47,7 @@ register_command(char* buffer){
 
 int
 show(char* buffer){
-    char* name;
+    char* name = calloc(1, strlen(buffer)+1);
     char* token;
     char sep[] = ",";
     struct command* c;
@@ -70,7 +70,7 @@ show(char* buffer){
         syslog(LOG_NOTICE, "flexctl: couldn't open file %s",c->dir);
         return -1;
     }
-
+    
     fseek(f, 0L, SEEK_END);
     fsize = ftell(f);
     rewind(f);
