@@ -15,6 +15,7 @@ struct command* hash_commands = NULL;
 int
 register_command(char* buffer){
 
+    //add allocation based on token length
     char *name = calloc(1,strlen(buffer)+1);
     char *dir = calloc(1,strlen(buffer)+1);
     char* token;
