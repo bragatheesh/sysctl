@@ -36,4 +36,7 @@ show(char* buffer);
 int
 set(char* buffer);
 
+int
+list(char* buffer);
+
 #endif /*__SYSCTL_H__ */
