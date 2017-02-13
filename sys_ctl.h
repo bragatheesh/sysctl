@@ -57,25 +57,34 @@ struct flex_ctl{
 };
 
 int
-register_command(char* name, void* cb, struct flex_ctl* flex);
+register_command(char* name, char* dir);
+//register_command(char* name, void* cb, struct flex_ctl* flex);
+
 
 int
-list_command(struct flex_ctl* flex);
+list_command();
+//list_command(struct flex_ctl* flex);
+
+
+//int
+//execute_command(char* name);
+
+
+//pthread_t
+//monitor_command_init(char* name);
+
+//void*
+//monitor_command_execute(void* arg);
 
 int
-execute_command(char* name);
+show(char* name);
+//show(struct flex_ctl* flex, char* cmd_name);
 
-pthread_t
-monitor_command_init(char* name);
-
-void*
-monitor_command_execute(void* arg);
-
-void*
-show(struct flex_ctl* flex, char* cmd_name);
 
 int
-set(struct flex_ctl* flex, char* cmd_name, int data);
+set(char* name, char* data);
+//set(struct flex_ctl* flex, char* cmd_name, int data);
+
 
 
 
