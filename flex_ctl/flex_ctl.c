@@ -81,6 +81,11 @@ show(char* buffer){
     fseek(f, 0L, SEEK_END);
     fsize = ftell(f);
     rewind(f);
+    
+    if(fsize == 0){
+        syslog(LOG_NOTICE, "flexctl: file size is zero");
+        return -1;
+    }
 
     rdbuff = calloc(1, fsize+1);
     if(!rdbuff){

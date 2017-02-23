@@ -62,10 +62,8 @@ register_command(char* name, char* dir){
     }
 
     fclose(fp);
-
     return 0;
 }
-
 
 int
 list_command(){
@@ -73,7 +71,7 @@ list_command(){
     long fsize;
     char* rdbuff;
     FILE* fp;
-
+    
     fp = fopen("/flexpath.ctl", "w+");
     if(fp < 0){
         printf("Error opening /flexpath.ctl\n");
@@ -139,7 +137,7 @@ show(char* name){
     }
     fclose(fp);
     sleep(1);
-    //check file again for what flextctl wrote
+    
     fp = fopen("/flexpath.ctl", "r");
     if(fp < 0){
         printf("Error opening /flexpath.ctl\n");

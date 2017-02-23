@@ -71,5 +71,4 @@ show(char* name);
 int
 set(char* name, char* data);
 
-
 #endif /*__SYSCTL_H__ */
