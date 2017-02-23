@@ -25,21 +25,15 @@ struct flex_ctl{
 
 
 int
-init_ctl(void);
+main(void);
 
 int
 register_command(char* buffer);
 
 int
-show(char* fname, char* buffer);
+show(char* buffer);
 
 int
 set(char* buffer);
-
-int
-list(char* fname);
-
-void 
-term(int signum);
 
 #endif /*__SYSCTL_H__ */

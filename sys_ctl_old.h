@@ -41,7 +41,7 @@ struct command{
 	char* dir;		        //name of the file we will be modifying along with absolute path from struct flexctl dir
 	char* data;		        //holds the data that will be written (maybe not required?)
 	FILE* fp;		        //holds file pointer to the file
-	void (*cb)(void *);     //holds pointer to handler function
+	void (*cb)(void *);     //holds pointer to callback function on trigger of file change
 	pthread_t id;           //holds pthread id for this command	
     UT_hash_handle hh;
 };
@@ -57,19 +57,26 @@ struct flex_ctl{
 };
 
 int
-register_command(char* dir);
-
-
-int
-list_command();
-
+register_command(char* name, void* cb, struct flex_ctl* flex);
 
 int
-show(char* name);
-
+list_command(struct flex_ctl* flex);
 
 int
-set(char* name, char* data);
+execute_command(char* name);
+
+pthread_t
+monitor_command_init(char* name);
+
+void*
+monitor_command_execute(void* arg);
+
+void*
+show(struct flex_ctl* flex, char* cmd_name);
+
+int
+set(struct flex_ctl* flex, char* cmd_name, int data);
+
 
 
 #endif /*__SYSCTL_H__ */
