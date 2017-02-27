@@ -307,8 +307,9 @@ term(int signum){
 
 
 int
-init_ctl(void){
-    pid_t pid, sid;
+//init_ctl(void){
+main(void){
+    /*pid_t pid, sid;
 
     pid = fork();
     if (pid < 0) {
@@ -326,16 +327,36 @@ init_ctl(void){
     sid = setsid();
     if (sid < 0) {
         exit(EXIT_FAILURE);
+    }*/
+
+    printf("PID: %d\n", getpid());
+    int ret;
+    char dir[23];
+    bzero(dir, 23);
+    sprintf(dir, "%d", getpid());
+
+    if((chdir("/etc/init/flexctl")) < 0){
+        if(mkdir("/etc/init/flexctl", 0777) < 0)
+            exit(EXIT_FAILURE);
+        
+        if ((chdir("/etc/init/flexctl")) < 0) {
+            exit(EXIT_FAILURE);
+        }
     }
 
-    char dir[100];
-    sprintf(dir, "/flex_%d", getpid());
-    if ((chdir(dir)) < 0) {
-        mkdir(dir, 0777);
+    if(chdir(dir) < 0){
+        if(mkdir(dir, 0777) < 0)
+            exit(EXIT_FAILURE);
+        
         if ((chdir(dir)) < 0) {
             exit(EXIT_FAILURE);
         }
     }
+    
+    /*if((chdir(dir))< 0){
+        syslog(LOG_NOTICE,"flexctl: could not change to dir /proc/%d", pid);
+        exit(EXIT_FAILURE);
+    }*/
 
 
     close(STDIN_FILENO);
@@ -347,16 +368,26 @@ init_ctl(void){
     action.sa_handler = term;
     sigaction(SIGTERM, &action, NULL);
 
-    int length, ret;
+    int length;
     pthread_t flexpath_thread, dpdk_thread;
     long fsize;
     char* rdbuff;
-    char* flex = "flexpath.ctl";
+    char* flex_in = "flexctl_in.ctl";
+    char* flex_out = "flexctl_out.ctl";
     char* dpdk = "dpdk.ctl";
     FILE* f;
-    f = fopen(flex, "a+");
+    //char* file = calloc(1, strlen(flex) + strlen(dir) + 2);
+    //sprintf(file, "%s/%s", dir, flex);
+    f = fopen(flex_in, "a+");
     if(f < 0){
-        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file flexpath.ctl");
+        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file %s", flex_in);
+        exit(EXIT_FAILURE);
+    }
+    fclose(f);
+
+    f = fopen(flex_out, "a+");
+    if(f < 0){
+        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file %s", flex_out);
         exit(EXIT_FAILURE);
     }
     fclose(f);
@@ -367,9 +398,9 @@ init_ctl(void){
         exit(EXIT_FAILURE);
     }
     fclose(f);*/
-    ret = pthread_create(&flexpath_thread, NULL, &file_handler, (void*)flex);
+    ret = pthread_create(&flexpath_thread, NULL, &file_handler, (void*)flex_in);
     if(ret != 0){
-        printf("Error creating thread for %s\n", "flexpath.ctl");
+        printf("Error creating thread for %s\n", flex_in);
         exit(EXIT_FAILURE);
     }
 /*

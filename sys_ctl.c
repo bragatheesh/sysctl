@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <linux/inotify.h>
-#include "sys_ctl.h"
+#include "sys_ctl_lib.h"
 #include "uthash.h"
 #include <rte_hash.h>
 #include <rte_common.h>
@@ -39,150 +39,7 @@
 #include <rte_udp.h>
 #include <rte_string_fns.h>
 #include <rte_cpuflags.h>
-
-
-int
-register_command(char* name, char* dir){
-    int ret;
-    size_t cmd_len;
-
-    FILE* fp;
-
-    //open up flexpath.ctl and write register (command name) (file to point to)
-    fp = fopen("/flexpath.ctl", "w+");
-    if(fp < 0){
-        printf("Error opening /flexpath.ctl\n");
-        return -1;
-    }
-
-    if(fprintf(fp, "REGISTER,%s,%s", name, dir) < 0){
-        printf("Error writing to /flexpath.ctl\n");
-        fclose(fp);
-        return -1;
-    }
-
-    fclose(fp);
-    return 0;
-}
-
-int
-list_command(){
-    /*here we can list all the commands we have registered*/
-    long fsize;
-    char* rdbuff;
-    FILE* fp;
-    
-    fp = fopen("/flexpath.ctl", "w+");
-    if(fp < 0){
-        printf("Error opening /flexpath.ctl\n");
-        return -1;
-    }
-
-    if(fprintf(fp, "LIST") < 0){
-        printf("Error writing to /flexpath.ctl\n");
-        fclose(fp);
-        return -1;
-    }
-    fclose(fp);
-
-    sleep(2);
-
-    fp = fopen("/flexpath.ctl", "rb");
-    if(fp < 0){ 
-        printf("Error opening /flexpath.ctl\n");
-        return -1;
-    }
-
-    fseek(fp, 0L, SEEK_END);
-    fsize = ftell(fp);
-    rewind(fp);
-
-    rdbuff = calloc(1, fsize+1);
-    if(!rdbuff){
-        fclose(fp);
-        printf("flexctl: Memory alloc failed for read file buffer\n");
-        return -1;
-    }
-
-    if(1 != fread(rdbuff, fsize, 1 ,fp)){
-        fclose(fp);
-        printf("flexctl: File /flexpath.ctl read failed\n");
-        free(rdbuff);
-        return -1;
-    }
-    printf("\n%s\n",rdbuff);
-    fclose(fp);
-
-    return 0;
-}
-
-
-
-int
-show(char* name){
-    FILE* fp;     
-    char* rdbuff;
-    long fsize;
-
-    fp = fopen("/flexpath.ctl", "w+");
-    if(fp < 0){
-        printf("Error opening /flexpath.ctl\n");
-        return -1;
-    }
-
-    if(fprintf(fp, "SHOW,%s", name) < 0){
-        printf("Error writing to /flexpath.ctl\n");
-        fclose(fp);
-        return -1;
-    }
-    fclose(fp);
-    sleep(1);
-    
-    fp = fopen("/flexpath.ctl", "r");
-    if(fp < 0){
-        printf("Error opening /flexpath.ctl\n");
-        return -1;
-    }
-
-    fseek(fp, 0L, SEEK_END);
-    fsize = ftell(fp);
-    rewind(fp);
-
-    rdbuff = calloc(1, fsize+1);
-    if(!rdbuff){
-        fclose(fp);
-        printf("flexctl: Memory alloc failed for read file buffer\n");
-        return -1;
-    }
-
-    if(1 != fread(rdbuff, fsize, 1 ,fp)){
-        fclose(fp);
-        printf("flexctl: File /flexpath.ctl read failed\n");
-        free(rdbuff);
-        return -1;
-    }
-    printf("\n%s\n",rdbuff);
-    fclose(fp);
-    free(rdbuff);
-    return 0;
-}
-
-int
-set(char* name, char* data){
-    FILE* fp;     
-    fp = fopen("/flexpath.ctl", "w+");
-    if(fp < 0){
-        printf("Error opening /flexpath.ctl\n");
-        return -1;
-    }
-
-    if(fprintf(fp, "SET,%s,%s",name, data) < 0){
-        printf("Error writing to /flexpath.ctl\n");
-        fclose(fp);
-        return -1;
-    }
-    fclose(fp);
-}
+#include <dirent.h>
 
 
 int
@@ -191,70 +48,114 @@ main(int argc, char** argv){
     char* cmd_name;
     char* data;
     char* dir;
+    char* line;
+    char* tmp_line;
+    char* token;
+    char sep[] = ",";
+    size_t len = 0;
+    ssize_t read;
+    FILE* fp;
 
     if(argc < 2){
         printf("USAGE:\n./sys_ctl [command] [name] [dir/data]\n"
-                "REGISTER syntax: REGISTER [command_name] [dir]\n"
+                "REGISTER syntax: REGISTER [dir]\n"
                 "SET syntax: SET [command_name] [data]\n"
                 "SHOW syntax: SHOW [command_name]\n"
                 "LIST syntax: LIST\n");
         return 0;
     }
 
-    if(!(strcmp("REGISTER",argv[1]))){
-        printf("Register\n");
-        if(argc != 4){
-            printf("REGISTER syntax: REGISTER [dir]\n");
-            return -1;
-        }
+    if(get_pid_from_name("/home/snaproute/workspace/sysctlbckup/sysctl/a.out") == -1){
+    //if(get_pid_from_name("./a.out") == -1){
+        printf("flexctl daemon not found\n");
+        return -1;
+    }
 
-        dir = calloc(1, strlen(argv[2]));
-        strcpy(dir, argv[2]);
-        register_command(dir);
-        
-        return 0;       
-    }
-    else if(!(strcmp("SET", argv[1]))){
-        printf("Set\n");
-        if(argc != 4){
-            printf("SET syntax: SET [command_name] [data]\n");
-            return -1;
-        }
-        cmd_name = calloc(1, strlen(argv[2]));
-        strcpy(cmd_name, argv[2]);
-        data = calloc(1, strlen(argv[3]));
-        strcpy(data, argv[3]);
-        set(cmd_name, data);
-        return 0;
-    }
-    else if(!(strcmp("SHOW", argv[1]))){
-        printf("Show\n");
+    if(!(strcmp("FILE", argv[1]))){
+        printf("File specified\n");
         if(argc != 3){
-            printf("SHOW syntax: SHOW [command_name]\n");
+            printf("FILE syntax: FILE file_name\n");
             return -1;
         }
-        cmd_name = calloc(1, strlen(argv[2]));
-        strcpy(cmd_name, argv[2]);
-        show(cmd_name);
-        return 0;
-    }
-    else if(!(strcmp("LIST", argv[1]))){
-        printf("List\n");
-        if(argc != 2){
-            printf("LIST syntax: LIST\n");
+        fp = fopen(argv[2], "rb");
+        if(fp == NULL){
+            printf("Error opening file %s\n", argv[2]);
             return -1;
         }
-        list_command();
-        return 0;
     }
 
-    else{
-        printf("USAGE:\n./sys_ctl [command] [name] [dir/data]\n"
-                "REGISTER syntax: REGISTER [command_name] [dir]\n"
-                "SET syntax: SET [command_name] [data]\n"
-                "SHOW syntax: SHOW [command_name]\n"
-                "LIST syntax: LIST\n");
-        return 0;
+    while ((read = getline(&line, &len, fp)) != -1){
+        strtok(line, "\n");
+        tmp_line = calloc(1, strlen(line)+ 1);
+        strcpy(tmp_line, line);
+        token = strtok(line, sep);
+
+        if (!(strcmp("REGISTER", token))){
+            printf("Register\n");
+            token = strtok(NULL, sep);
+            if(token == NULL){
+                printf("REGISTER syntax: REGISTER,[cmd_name],[path],[cb]");
+                return -1;
+            }
+
+            register_command(tmp_line);
+            continue;
+        }
+
+        else if (!(strcmp("SET", token))){
+            printf("Set\n");
+
+            token = strtok(NULL, sep);
+            if(token == NULL){
+                printf("SET syntax: SET [command_name] [data]\n");
+                return -1;
+            }
+
+            cmd_name = calloc(1, strlen(token));
+            strcpy(cmd_name, token);
+            
+            token = strtok(NULL, sep);
+            if(token == NULL){
+                printf("SET syntax: SET [command_name] [data]\n");
+                return -1;
+            }
+
+            data = calloc(1, strlen(token));
+            strcpy(data, token);
+            
+            set(cmd_name, data);
+            continue;
+        }
+
+        else if (!(strcmp("SHOW", token))){
+            printf("Show\n");
+
+            token = strtok(NULL, sep);
+            if (token == NULL){
+                printf("SHOW syntax: SHOW [command_name]\n");
+                return -1;
+            }
+            cmd_name = calloc(1, strlen(token));
+            strcpy(cmd_name, token);
+            show(cmd_name);
+            continue;
+        }
+        
+        else if (!(strcmp("LIST", token))){
+            printf("List\n");
+            list_command();
+            continue;
+        }
+
+        else{
+            printf("USAGE:\n./sys_ctl [command] [name] [dir/data]\n"
+                   "REGISTER syntax: REGISTER [command_name] [dir]\n"
+                   "SET syntax: SET [command_name] [data]\n"
+                   "SHOW syntax: SHOW [command_name]\n"
+                   "LIST syntax: LIST\n");
+            return 0;
+        }
+        sleep(2);
     }
 
     return 0;
