@@ -143,6 +143,7 @@ register_command(char* buffer){
     }
 
     fclose(fp);
+    sleep(2.5);
     return 0;
 }
 
@@ -157,7 +158,9 @@ list_command(){
     char* out_path = calloc(1, 100);
     FILE* fp;
     
-    sprintf(in_path, "/etc/init/flexctl/%d/flexctl.ctl", daemon_pid);
+    sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
+    sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
+
     fp = fopen(in_path, "w+");
     if(fp < 0){
         printf("Error opening %s\n", in_path);
@@ -212,7 +215,7 @@ list_command(){
     }
     printf("\n%s\n",rdbuff);
     fclose(fp);
-
+    sleep(2);
     return 0;
 }
 
@@ -225,8 +228,10 @@ show(char* name){
     long fsize;
     char* in_path = calloc(1, 100);
     char* out_path = calloc(1, 100);
+
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
+
     fp = fopen(in_path, "w+");
     if(fp < 0){
         printf("Error opening %s\n", in_path);
@@ -282,6 +287,7 @@ show(char* name){
     printf("\n%s\n",rdbuff);
     fclose(fp);
     free(rdbuff);
+    sleep(2);
     return 0;
 }
 
@@ -303,6 +309,8 @@ set(char* name, char* data){
         return -1;
     }
     fclose(fp);
+    sleep(2);
+    return 0;
 }
 
 

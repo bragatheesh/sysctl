@@ -186,13 +186,35 @@ list(char* fname){
 }
 
 void
-file_handler(void* file_name){
+file_handler(){
     int length, ret;
     long fsize;
     char* rdbuff;
     FILE* f;
-    char* fname = calloc(1, strlen((char*)file_name) + 1);
-    strcpy(fname, (char*)file_name);
+
+    /*char* in_fname = calloc(1, strlen((char*)input_file_name) + 1);
+    char* out_fname = calloc(1, strlen((char*)output_file_name) + 1);
+    strcpy(in_fname, (char*)input_file_name);
+    strcpy(out_fname, (char*)output_file_name);*/
+    
+    char* in_fname = "flexctl_in.ctl";
+    char* out_fname = "flexctl_out.ctl";
+    char* dpdk = "dpdk.ctl";
+
+
+    f = fopen(in_fname, "a+");
+    if(f < 0){
+        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file %s", in_fname);
+        exit(EXIT_FAILURE);
+    }
+    fclose(f);
+
+    f = fopen(out_fname, "a+");
+    if(f < 0){
+        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file %s", out_fname);
+        exit(EXIT_FAILURE);
+    }
+    fclose(f);
 
     int fd = inotify_init();
     if(fd < 0){
@@ -200,8 +222,8 @@ file_handler(void* file_name){
         exit(EXIT_FAILURE);
     }
 
-    inotify_add_watch(fd, fname, IN_MODIFY);
-    syslog(LOG_NOTICE, "flexctl: entering while loop for %s", fname);
+    inotify_add_watch(fd, in_fname, IN_MODIFY);
+    syslog(LOG_NOTICE, "flexctl: entering while loop for %s", in_fname);
     while (1) {
 
         int EVENT_SIZE = (sizeof(struct inotify_event));
@@ -217,9 +239,10 @@ file_handler(void* file_name){
             exit(EXIT_FAILURE);
         }
         else{
-            f = fopen(fname, "rb");
+            sleep(0.5);
+            f = fopen(in_fname, "rb");
             if(f < 0){
-                syslog(LOG_NOTICE, "flexctl: couldn't open file %s", fname);
+                syslog(LOG_NOTICE, "flexctl: couldn't open file %s", in_fname);
                 if(hash_commands != NULL){
                     HASH_CLEAR(hh, hash_commands);
                 }
@@ -258,7 +281,7 @@ file_handler(void* file_name){
 
             fclose(f);
 
-            syslog(LOG_NOTICE, "flexctl: buffer: %s", rdbuff);
+            //syslog(LOG_NOTICE, "flexctl: buffer: %s", rdbuff);
 
             switch(rdbuff[0]){
                 case 'R':
@@ -270,14 +293,14 @@ file_handler(void* file_name){
                             set(rdbuff);
                             break;
                         case 'H':
-                            show(fname, rdbuff);
+                            show(out_fname, rdbuff);
                             break;
                         default:
                             syslog(LOG_NOTICE, "flexctl: unknown command %s", rdbuff);
                     }
                     break;
                 case 'L':
-                    list(fname);
+                    list(out_fname);
                     break;
                 case 'E':
                     syslog(LOG_NOTICE, "flexctl: Exiting");
@@ -370,27 +393,7 @@ main(void){
 
     int length;
     pthread_t flexpath_thread, dpdk_thread;
-    long fsize;
-    char* rdbuff;
-    char* flex_in = "flexctl_in.ctl";
-    char* flex_out = "flexctl_out.ctl";
-    char* dpdk = "dpdk.ctl";
-    FILE* f;
-    //char* file = calloc(1, strlen(flex) + strlen(dir) + 2);
-    //sprintf(file, "%s/%s", dir, flex);
-    f = fopen(flex_in, "a+");
-    if(f < 0){
-        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file %s", flex_in);
-        exit(EXIT_FAILURE);
-    }
-    fclose(f);
-
-    f = fopen(flex_out, "a+");
-    if(f < 0){
-        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file %s", flex_out);
-        exit(EXIT_FAILURE);
-    }
-    fclose(f);
+    
 /*
     f = fopen(dpdk, "a+");
     if(f < 0){
@@ -398,9 +401,9 @@ main(void){
         exit(EXIT_FAILURE);
     }
     fclose(f);*/
-    ret = pthread_create(&flexpath_thread, NULL, &file_handler, (void*)flex_in);
+    ret = pthread_create(&flexpath_thread, NULL, &file_handler, NULL);
     if(ret != 0){
-        printf("Error creating thread for %s\n", flex_in);
+        printf("Error creating thread\n");
         exit(EXIT_FAILURE);
     }
 /*
