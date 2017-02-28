@@ -1,0 +1,7 @@
+REGISTER,CMD_1,PATH,CB
+REGISTER,CMD_2,PATH2,CB2
+REGISTER,CMD_3,/home/snaproute/workspace/sysctlbckup/sysctl/newfile,cb3
+SHOW,CMD_3
+SET,CMD_3,1
+SHOW,CMD_3
+LIST

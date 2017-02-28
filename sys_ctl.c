@@ -65,8 +65,8 @@ main(int argc, char** argv){
         return 0;
     }
 
-    //if(get_pid_from_name("/home/snaproute/workspace/sysctlbckup/sysctl/a.out") == -1){
-    if(get_pid_from_name("./a.out") == -1){
+    if(get_pid_from_name("/home/snaproute/workspace/sysctlbckup/sysctl/a.out") == -1){
+    //if(get_pid_from_name("./a.out") == -1){
         printf("flexctl daemon not found\n");
         return -1;
     }

@@ -297,19 +297,43 @@ set(char* name, char* data){
     char* in_path = calloc(1, 100);
 
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
-    fp = fopen(in_path, "w+");
-    if(fp < 0){
+
+    int file_des;
+    off_t file_size;
+    struct stat stbuff;
+    struct flock fl;
+    
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+    fl.l_pid = getpid();
+
+
+    file_des = open(in_path, O_RDWR);
+    if(file_des < 0){
         printf("Error opening %s\n", in_path);
         return -1;
     }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    /*fp = fopen(in_path, "w+");
+    if(fp < 0){
+        printf("Error opening %s\n", in_path);
+        return -1;
+    }*/
 
     if(fprintf(fp, "SET,%s,%s",name, data) < 0){
         printf("Error writing to %s\n", in_path);
         fclose(fp);
         return -1;
     }
-    fclose(fp);
-    sleep(2);
+    //fclose(fp);
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+    //sleep(2);
     return 0;
 }
 
