@@ -37,6 +37,7 @@
 #include <rte_cpuflags.h>
 #include <dirent.h>
 #include <linux/inotify.h>
+#include <sys/stat.h>
 
 struct command{
 	char* name;	            //name of our command, also used as a key for our hashtable
@@ -127,24 +128,63 @@ register_command(char* buffer){
     size_t cmd_len;
     char* in_path = calloc(1, 100);
     FILE* fp;
+    int file_des;
+    off_t file_size;
+    struct stat stbuff;
+    struct flock fl;
+
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+    fl.l_pid = getpid();
 
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     //open up flexpath.ctl and write register (command name) (file to point to)
-    fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
+    
+    if (truncate(in_path, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
         return -1;
     }
 
+    file_des = open(in_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", in_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if (write(file_des, buffer, strlen(buffer)) < 0){
+        printf("Error writing to %s\n", in_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+    return 0;
+
+    /*fp = fopen(in_path, "w+");
+    if(fp < 0){
+        printf("Error opening %s\n", in_path);
+        return -1;
+    }*/
+
+
+/*
     if(fprintf(fp, "%s", buffer) < 0){
         printf("Error writing to %s\n", in_path);
         fclose(fp);
         return -1;
     }
-
-    fclose(fp);
-    sleep(2.5);
-    return 0;
+*/
+    //fclose(fp);
+    //sleep(2.5);
+    
 }
 
 int
@@ -157,22 +197,59 @@ list_command(){
     char* in_path = calloc(1, 100);
     char* out_path = calloc(1, 100);
     FILE* fp;
+    char* cmd = "LIST";
+    int file_des;
+    off_t file_size;
+    struct stat stbuff;
+    struct flock fl;
+
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+    fl.l_pid = getpid();
     
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
 
-    fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
+    if (truncate(in_path, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
         return -1;
     }
 
-    if(fprintf(fp, "LIST") < 0){
+    file_des = open(in_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", in_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    
+    if(write(file_des, cmd, strlen(cmd)) < 0){
+        printf("Error writing to %s\n", in_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+    
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+
+
+    /*fp = fopen(in_path, "w+");
+    if(fp < 0){
+        printf("Error opening %s\n", in_path);
+        return -1;
+    }*/
+
+    /*if(fprintf(fp, "LIST") < 0){
         printf("Error writing to %s\n", in_path);
         fclose(fp);
         return -1;
     }
-    fclose(fp);
+    fclose(fp);*/
 
     fd = inotify_init();
     if(fd < 0){
@@ -190,32 +267,74 @@ list_command(){
         return -1;
     }
 
-    fp = fopen(out_path, "rb");
+    fl.l_type = F_WRLCK;
+    file_des = open(out_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", out_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    if (fstat(file_des, &stbuff) != 0){
+        printf("flexctl: couldn't stat file %s", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+    fsize = stbuff.st_size;
+
+    /*fp = fopen(out_path, "rb");
     if(fp < 0){ 
         printf("Error opening %s\n", out_path);
         return -1;
-    }
+    }*/
 
-    fseek(fp, 0L, SEEK_END);
+    /*fseek(fp, 0L, SEEK_END);
     fsize = ftell(fp);
     rewind(fp);
-
+    */
+    int ret = 0;
     rdbuff = calloc(1, fsize+1);
     if(!rdbuff){
-        fclose(fp);
+        //fclose(fp);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
         printf("flexctl: Memory alloc failed for read file buffer\n");
         return -1;
     }
+    while(1){
+        if(read(file_des, rdbuff, fsize) < 0){
+            printf("flexctl: File %s read failed\n", out_path);
+            fl.l_type = F_UNLCK;
+            fcntl(file_des, F_SETLK, &fl);
+            close(file_des);
+            free(rdbuff);
+            return -1;
+        }
+        printf("\n%s\n",rdbuff);
+        ret += strlen(rdbuff);
+        if(ret > fsize)
+            break;
+        bzero(rdbuff, strlen(rdbuff));
+    }
 
-    if(1 != fread(rdbuff, fsize, 1 ,fp)){
+    /*if(1 != fread(rdbuff, fsize, 1 ,fp)){
         fclose(fp);
         printf("flexctl: File %s read failed\n", out_path);
         free(rdbuff);
         return -1;
-    }
+    }*/
+    
     printf("\n%s\n",rdbuff);
-    fclose(fp);
-    sleep(2);
+    /*fclose(fp);
+    sleep(2);*/
+    
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+    free(rdbuff);
     return 0;
 }
 
@@ -228,23 +347,67 @@ show(char* name){
     long fsize;
     char* in_path = calloc(1, 100);
     char* out_path = calloc(1, 100);
+    char cmd[1024];
+    int file_des;
+    off_t file_size;
+    struct stat stbuff;
+    struct flock fl;
+
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+    fl.l_pid = getpid();
 
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
 
-    fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
+    if (truncate(in_path, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
         return -1;
     }
 
-    if(fprintf(fp, "SHOW,%s", name) < 0){
+    file_des = open(in_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", in_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    bzero(cmd, 1024);
+    if(sprintf(cmd, "SHOW,%s", name) < 0){
+        printf("Error writing to %s\n", in_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+    }
+
+    if(write(file_des, cmd, strlen(cmd)) < 0){
+        printf("Error writing to %s\n", in_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+
+    /*fp = fopen(in_path, "w+");
+    if(fp < 0){
+        printf("Error opening %s\n", in_path);
+        return -1;
+    }*/
+
+    /*if(fprintf(fp, "SHOW,%s", name) < 0){
         printf("Error writing to %s\n", in_path);
         fclose(fp);
         return -1;
     }
-    fclose(fp);
+    fclose(fp);*/
     
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+
     int fd = inotify_init();
     if(fd < 0){
         printf("Failed to init inotify in list_command\n");
@@ -261,7 +424,24 @@ show(char* name){
         return -1;
     }
     
-    fp = fopen(out_path, "r");
+    fl.l_type = F_WRLCK;
+    file_des = open(out_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", out_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    if (fstat(file_des, &stbuff) != 0){
+        printf("flexctl: couldn't stat file %s", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+    fsize = stbuff.st_size;
+
+    /*fp = fopen(out_path, "r");
     if(fp < 0){
         printf("Error opening %s\n", out_path);
         return -1;
@@ -269,25 +449,34 @@ show(char* name){
 
     fseek(fp, 0L, SEEK_END);
     fsize = ftell(fp);
-    rewind(fp);
+    rewind(fp);*/
 
     rdbuff = calloc(1, fsize+1);
     if(!rdbuff){
-        fclose(fp);
+        //fclose(fp);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
         printf("flexctl: Memory alloc failed for read file buffer\n");
         return -1;
     }
 
-    if(1 != fread(rdbuff, fsize, 1 ,fp)){
-        fclose(fp);
+    if(read(file_des, rdbuff, fsize) < 0){
         printf("flexctl: File %s read failed\n", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
         free(rdbuff);
         return -1;
     }
+
     printf("\n%s\n",rdbuff);
-    fclose(fp);
+    //fclose(fp);
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
     free(rdbuff);
-    sleep(2);
+    //sleep(2);
     return 0;
 }
 
@@ -302,6 +491,7 @@ set(char* name, char* data){
     off_t file_size;
     struct stat stbuff;
     struct flock fl;
+    char buffer[1024];
     
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
@@ -309,6 +499,10 @@ set(char* name, char* data){
     fl.l_len = 0;
     fl.l_pid = getpid();
 
+    if (truncate(in_path, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
+        return -1;
+    }
 
     file_des = open(in_path, O_RDWR);
     if(file_des < 0){
@@ -323,12 +517,27 @@ set(char* name, char* data){
         printf("Error opening %s\n", in_path);
         return -1;
     }*/
+    bzero(buffer, 1024);
+    if(sprintf(buffer, "SET,%s,%s",name, data) < 0){
+        printf("Error writing to %s\n", in_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+    }
+    
+    if(write(file_des, buffer, 1024) < 0){
+        printf("Error writing to %s\n", in_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
 
-    if(fprintf(fp, "SET,%s,%s",name, data) < 0){
+    /*if(fprintf(fp, "SET,%s,%s",name, data) < 0){
         printf("Error writing to %s\n", in_path);
         fclose(fp);
         return -1;
-    }
+    }*/
     //fclose(fp);
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);

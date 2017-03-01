@@ -89,7 +89,7 @@ main(int argc, char** argv){
         tmp_line = calloc(1, strlen(line)+ 1);
         strcpy(tmp_line, line);
         token = strtok(line, sep);
-
+        sleep(3);
         if (!(strcmp("REGISTER", token))){
             printf("Register\n");
             token = strtok(NULL, sep);
@@ -155,7 +155,6 @@ main(int argc, char** argv){
                    "LIST syntax: LIST\n");
             return 0;
         }
-        //sleep(5);
     }
 
     return 0;
