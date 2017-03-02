@@ -123,10 +123,11 @@ get_pid_from_name(char* proc_name){
 
 
 int
-register_command(char* buffer){
+register_command(char* cmd_buffer){
     int ret;
     size_t cmd_len;
     char* in_path = calloc(1, 100);
+    char* out_path = calloc(1, 100);
     FILE* fp;
     int file_des;
     off_t file_size;
@@ -140,6 +141,7 @@ register_command(char* buffer){
     fl.l_pid = getpid();
 
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
+    sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
     //open up flexpath.ctl and write register (command name) (file to point to)
     
     if (truncate(in_path, 0) == -1){
@@ -155,7 +157,7 @@ register_command(char* buffer){
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
 
-    if (write(file_des, buffer, strlen(buffer)) < 0){
+    if (write(file_des, cmd_buffer, strlen(cmd_buffer)) < 0){
         printf("Error writing to %s\n", in_path);
         fl.l_type = F_UNLCK;
         fcntl(file_des, F_SETLK, &fl);
@@ -166,6 +168,73 @@ register_command(char* buffer){
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
+
+    int fd = inotify_init();
+    if(fd < 0){
+        printf("Failed to init inotify in list_command\n");
+        return -1;
+    }
+
+    inotify_add_watch(fd, out_path, IN_MODIFY);
+    int EVENT_SIZE = (sizeof(struct inotify_event));
+    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+    char buffer[EVENT_BUF_LEN];
+    
+    int length = read(fd, buffer, EVENT_BUF_LEN);
+    if(length < 0){
+        printf("Error detecting changes in file from list_command\n");
+        return -1;
+    }
+
+    fl.l_type = F_WRLCK;
+    file_des = open(out_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", out_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    if (fstat(file_des, &stbuff) != 0){
+        printf("flexctl: couldn't stat file %s", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+    int fsize = stbuff.st_size;
+
+    char* rdbuff = calloc(1, fsize);
+    if(!rdbuff){
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        printf("flexctl: Memory alloc failed for read file buffer\n");
+        return -1;
+    }
+
+    if (read(file_des, rdbuff, fsize) < 0){
+        printf("flexctl: File %s read failed\n", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        free(rdbuff);
+        return -1;
+    }
+
+    if(!strcmp(rdbuff, "SUCCESS")){
+        printf("%s Registered successfully\n", cmd_buffer);
+        
+    }
+    else if(!strcmp(rdbuff, "FAIL_EXISTS")){
+        printf("Error registering %s\nCommand already exists.\n", cmd_buffer);
+    }
+    
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+    free(rdbuff);
+
+
     return 0;
 }
 
@@ -235,9 +304,6 @@ list_command(){
         printf("Error detecting changes in file from list_command\n");
         return -1;
     }
-
-    //sleep(5);
-
 
     fl.l_type = F_WRLCK;
     file_des = open(out_path, O_RDWR);
@@ -404,14 +470,16 @@ int
 set(char* name, char* data){
     FILE* fp;     
     char* in_path = calloc(1, 100);
+    char* out_path = calloc(1, 100);
 
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
+    sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
 
     int file_des;
     off_t file_size;
     struct stat stbuff;
     struct flock fl;
-    char buffer[1024];
+    char buff[1024];
     
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
@@ -432,15 +500,15 @@ set(char* name, char* data){
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
 
-    bzero(buffer, 1024);
-    if(sprintf(buffer, "SET,%s,%s",name, data) < 0){
+    bzero(buff, 1024);
+    if(sprintf(buff, "SET,%s,%s",name, data) < 0){
         printf("Error writing to %s\n", in_path);
         fl.l_type = F_UNLCK;
         fcntl(file_des, F_SETLK, &fl);
         close(file_des);
     }
     
-    if(write(file_des, buffer, 1024) < 0){
+    if(write(file_des, buff, 1024) < 0){
         printf("Error writing to %s\n", in_path);
         fl.l_type = F_UNLCK;
         fcntl(file_des, F_SETLK, &fl);
@@ -451,6 +519,79 @@ set(char* name, char* data){
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
+
+    int fd = inotify_init();
+    if(fd < 0){
+        printf("Failed to init inotify in list_command\n");
+        return -1;
+    }
+
+    inotify_add_watch(fd, out_path, IN_MODIFY);
+    int EVENT_SIZE = (sizeof(struct inotify_event));
+    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+    char buffer[EVENT_BUF_LEN];
+    
+    int length = read(fd, buffer, EVENT_BUF_LEN);
+    if(length < 0){
+        printf("Error detecting changes in file from list_command\n");
+        return -1;
+    }
+
+    fl.l_type = F_WRLCK;
+    file_des = open(out_path, O_RDWR);
+    if(file_des < 0){
+        printf("flexctl: couldn't open file %s", out_path);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    if (fstat(file_des, &stbuff) != 0){
+        printf("flexctl: couldn't stat file %s", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+    int fsize = stbuff.st_size;
+
+    char* rdbuff = calloc(1, fsize);
+    if(!rdbuff){
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        printf("flexctl: Memory alloc failed for read file buffer\n");
+        return -1;
+    }
+
+    if (read(file_des, rdbuff, fsize) < 0){
+        printf("flexctl: File %s read failed\n", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        free(rdbuff);
+        return -1;
+    }
+
+    if(!strcmp(rdbuff, "SUCCESS")){
+        printf("%s set to %s successfully\n", name, data);  
+    }
+    else if(!strcmp(rdbuff, "FAIL_NOT_REGISTERED")){
+        printf("Error: Command %s has not been registered\n", name);
+    }
+    else if(!strcmp(rdbuff, "FAIL_FILE_OPEN")){
+        printf("Error: Could not open %s's file\n", name);
+    }
+    else if(!strcmp(rdbuff, "FAIL_FILE_WRITE")){
+        printf("Error: Could not write to %s's file\n", name);
+    }
+    else{
+        printf("Returned: %s\n", rdbuff);
+    }
+    
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
+    free(rdbuff);
     return 0;
 }
 

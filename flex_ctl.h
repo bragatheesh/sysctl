@@ -28,13 +28,13 @@ int
 init_ctl(void);
 
 int
-register_command(char* buffer);
+register_command(char* fname, char* buffer);
 
 int
 show(char* fname, char* buffer);
 
 int
-set(char* buffer);
+set(char* fname, char* buffer);
 
 int
 list(char* fname);

@@ -17,34 +17,80 @@
 struct command* hash_commands = NULL;
 
 int
-register_command(char* buffer){
+register_command(char* fname, char* buffer){
 
     char *name;
     char *dir;
     char* token;
     char sep[] = ",";
     struct command* c;
+    char* buff;
+    int success = 1;
 
     token = strtok(buffer, sep);
     token = strtok(NULL, sep);
-    name = calloc(1,strlen(token)+1);
+    name = (char*) calloc(strlen(token) + 1, sizeof(char));
     strcpy(name, token);
     token = strtok(NULL, sep);
-    dir = calloc(1,strlen(token)+1);
+    dir = (char*) calloc(strlen(token) + 1, sizeof(char));
     strcpy(dir, token);
 
     HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
     if (c != NULL) {
         syslog(LOG_NOTICE,"flexctl: Error: command %s has already been registered.", name);
-        return -1;
+        success = 0;
     }
 
     c = malloc(sizeof(struct command));
 
     c->name = name;
     c->dir = dir;
+    if(success)
+        HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
+    
+    int file_des;
+    off_t file_size;
+    struct stat stbuff;
+    struct flock fl;
+    if(success){
+        buff = (char*) calloc(strlen("SUCCESS") + 1, sizeof(char));
+        strcpy(buff, "SUCCESS");
+    }
+    else{
+        buff = (char*) calloc(strlen("FAIL_EXISTS") + 1, sizeof(char));
+        strcpy(buff, "FAIL_EXISTS");
+    }
 
-    HASH_ADD_KEYPTR(hh, hash_commands, c->name, strlen(c->name), c);
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+    fl.l_pid = getpid();
+
+    if (truncate(fname, 0) == -1){
+        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
+        return -1;
+    }
+
+    file_des = open(fname, O_RDWR);
+    if(file_des < 0){
+        syslog(LOG_NOTICE, "flexctl: couldn't open file %s", fname);
+        return -1;
+    }
+
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    
+    if(write(file_des, buff, strlen(buff)) < 0){
+        syslog(LOG_NOTICE, "Error writing to %s\n", fname);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
+        return -1;
+    }
+
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
 
     syslog(LOG_NOTICE,"flexctl: %s %s", c->name, c->dir);
     return 0;
@@ -64,7 +110,7 @@ show(char* fname, char* buffer){
 
     token = strtok(buffer, sep);
     token = strtok(NULL, sep);
-    name = calloc(1, strlen(token)+1);
+    name = (char*) calloc(strlen(token) + 1, sizeof(char));
     strcpy(name, token);
 
     HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
@@ -88,7 +134,7 @@ show(char* fname, char* buffer){
         return -1;
     }
 
-    rdbuff = calloc(1, fsize+1);
+    rdbuff = (char*) calloc(fsize, sizeof(char));
     if(!rdbuff){
         fclose(f);
         syslog(LOG_NOTICE,"flexctl: Memory alloc failed for read file buffer");
@@ -98,7 +144,7 @@ show(char* fname, char* buffer){
     if(1 != fread(rdbuff, fsize, 1 ,f)){
         fclose(f);
         syslog(LOG_NOTICE,"flexctl: File %s read failed", c->dir);
-        free(rdbuff);
+        //free(rdbuff);
         return -1;
     }
 
@@ -136,7 +182,7 @@ show(char* fname, char* buffer){
         return -1;
     }
 
-    free(rdbuff);
+    //free(rdbuff);
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
@@ -144,41 +190,99 @@ show(char* fname, char* buffer){
 }
 
 int
-set(char* buffer){ //need to implement lock here
+set(char* fname, char* buffer){ //need to implement lock here
     char *name;
     char *data;
     char* token;
+    char* buff;
+    int success = 0;
     FILE* f;
     char sep[] = ",";
     struct command* c;
 
     token = strtok(buffer, sep);
     token = strtok(NULL, sep);
-    name = calloc(1,strlen(token)+1);
+    name = (char*) calloc(strlen(token) + 1, sizeof(char));
     strcpy(name, token);
     token = strtok(NULL, sep);
-    data = calloc(1,strlen(token)+1);
+    data = (char*) calloc(strlen(token) + 1, sizeof(char));
     strcpy(data, token);
 
     HASH_FIND_STR(hash_commands, name, c);  //Check if command is already present in hash
     if (c == NULL) {
         syslog(LOG_NOTICE,"flexctl: Error: command %s has not been registered.", name);
+        success = -1;
+    }
+
+    if(success == 0){
+        f = fopen(c->dir, "w+");
+        if (f < 0){
+            syslog(LOG_NOTICE, "flexctl: couldn't open file %s", c->dir);
+            success = -2;
+        }
+        if(success == 0){
+            syslog(LOG_NOTICE, "flexctl: Writing %s to %s", data, c->dir);
+            if (fprintf(f, "%s", data) < 0){
+                syslog(LOG_NOTICE, "Error writing to %s\n", c->dir);
+                success = -3;
+            }
+
+            fclose(f);
+        }
+    }
+
+    int file_des;
+    off_t file_size;
+    struct stat stbuff;
+    struct flock fl;
+    
+    if(success == 0){
+        buff = (char*) calloc(strlen("SUCCESS") + 1, sizeof(char));
+        strcpy(buff, "SUCCESS");
+    }
+    else if(success == -1){
+        buff = (char*) calloc(strlen("FAIL_NOT_REGISTERED") + 1, sizeof(char));
+        strcpy(buff, "FAIL_NOT_REGISTERED");
+    }
+    else if(success == -2){
+        buff = (char*) calloc(strlen("FAIL_FILE_OPEN") + 1, sizeof(char));
+        strcpy(buff, "FAIL_FILE_OPEN");
+    }
+    else if(success == -3){
+        buff = (char*) calloc(strlen("FAIL_FILE_WRITE") + 1, sizeof(char));
+        strcpy(buff, "FAIL_FILE_WRITE");
+    }
+    
+    
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 0;
+    fl.l_pid = getpid();
+
+    if (truncate(fname, 0) == -1){
+        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
+    }
+
+    file_des = open(fname, O_RDWR);
+    if(file_des < 0){
+        syslog(LOG_NOTICE, "flexctl: couldn't open file %s You will need to restart CLI.", fname);
         return -1;
     }
 
-    f = fopen(c->dir, "w+");
-    if(f < 0){
-        syslog(LOG_NOTICE, "flexctl: couldn't open file %s",c->dir);
-        return -1;
-    }
-    syslog(LOG_NOTICE, "flexctl: Writing %s to %s", data, c->dir);
-    if(fprintf(f, "%s", data) < 0){
-        syslog(LOG_NOTICE, "Error writing to %s\n", c->dir);
-        fclose(f);
+    fcntl(file_des, F_SETLKW, &fl); //lock file
+    
+    if(write(file_des, buff, strlen(buff)) < 0){
+        syslog(LOG_NOTICE, "Error writing to %s You will need to restart CLI", fname);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
         return -1;
     }
 
-    fclose(f);
+    fl.l_type = F_UNLCK;
+    fcntl(file_des, F_SETLK, &fl);
+    close(file_des);
     return 0;
 }
 
@@ -215,8 +319,8 @@ list(char* fname){
     for(c = hash_commands; c != NULL; c = c->hh.next){
         //bzero(buffer, 1024);
         syslog(LOG_NOTICE,"flexctl: name: %s, dir: %s", c->name, c->dir);
-        int len = strlen("name: ") + strlen(c->name) + strlen(" ,dir: ") + strlen(c->dir) + strlen("\n");
-        char *output = calloc(1, len);
+        int len = strlen("name: ") + strlen(c->name) + strlen(", dir: ") + strlen(c->dir) + strlen("\n");
+        char *output = (char*) calloc(len + 1, sizeof(char));
         if(sprintf(output, "name: %s, dir: %s\n", c->name, c->dir) < 0){
         //if(sprintf(output, "name:, dir: \n") < 0){
             syslog(LOG_NOTICE, "flexctl: error printing to buffer in list");
@@ -243,7 +347,7 @@ void
 file_handler(){
     int length, ret;
     long fsize;
-    char* rdbuff;
+    
     FILE* f;
     int file_des;
     off_t file_size;
@@ -278,6 +382,8 @@ file_handler(){
     inotify_add_watch(fd, in_fname, IN_MODIFY);
     syslog(LOG_NOTICE, "flexctl: entering while loop for %s", in_fname);
     while (1) {
+
+        char* rdbuff;
 
         int EVENT_SIZE = (sizeof(struct inotify_event));
         int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
@@ -323,7 +429,7 @@ file_handler(){
                 continue;
             }
 
-            rdbuff = calloc(1, file_size+1);            
+            rdbuff = (char*) calloc(file_size, sizeof(char));            
             if(!rdbuff){
                 close(file_des);
                 syslog(LOG_NOTICE,"flexctl: Memory alloc failed for read file buffer");
@@ -339,7 +445,7 @@ file_handler(){
             if(read(file_des, rdbuff, file_size) < 1){
                 close(file_des);
                 syslog(LOG_NOTICE,"flexctl: File read failed: %s", in_fname);
-                free(rdbuff);
+                //free(rdbuff);
                 fl.l_type = F_UNLCK;
                 fcntl(file_des, F_SETLK, &fl);
                 close(file_des);
@@ -350,12 +456,12 @@ file_handler(){
 
             switch(rdbuff[0]){
                 case 'R':
-                    register_command(rdbuff);
+                    register_command(out_fname, rdbuff);
                     break;
                 case 'S':
                     switch(rdbuff[1]){
                         case 'E':
-                            set(rdbuff);
+                            set(out_fname, rdbuff);
                             break;
                         case 'H':
                             show(out_fname, rdbuff);
@@ -370,17 +476,22 @@ file_handler(){
                 case 'E':
                     syslog(LOG_NOTICE, "flexctl: Exiting");
                     HASH_CLEAR(hh, hash_commands);
-                    free(rdbuff);
+                    //free(rdbuff);
                     exit(EXIT_SUCCESS);
                     break;
                 default:
                     syslog(LOG_NOTICE, "flexctl: unknown command %s", rdbuff);
                     break;
             }
+            
+            if (truncate(in_fname, 0) == -1){
+                syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", in_fname);
+            }
+
             fl.l_type = F_UNLCK;
             fcntl(file_des, F_SETLK, &fl);
             close(file_des);
-            free(rdbuff); 
+            //free(rdbuff); 
             sleep(3);
         }
 
