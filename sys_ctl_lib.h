@@ -167,24 +167,6 @@ register_command(char* buffer){
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
     return 0;
-
-    /*fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
-        return -1;
-    }*/
-
-
-/*
-    if(fprintf(fp, "%s", buffer) < 0){
-        printf("Error writing to %s\n", in_path);
-        fclose(fp);
-        return -1;
-    }
-*/
-    //fclose(fp);
-    //sleep(2.5);
-    
 }
 
 int
@@ -238,19 +220,6 @@ list_command(){
     close(file_des);
 
 
-    /*fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
-        return -1;
-    }*/
-
-    /*if(fprintf(fp, "LIST") < 0){
-        printf("Error writing to %s\n", in_path);
-        fclose(fp);
-        return -1;
-    }
-    fclose(fp);*/
-
     fd = inotify_init();
     if(fd < 0){
         printf("Failed to init inotify in list_command\n");
@@ -266,6 +235,9 @@ list_command(){
         printf("Error detecting changes in file from list_command\n");
         return -1;
     }
+
+    //sleep(5);
+
 
     fl.l_type = F_WRLCK;
     file_des = open(out_path, O_RDWR);
@@ -284,52 +256,26 @@ list_command(){
     }
     fsize = stbuff.st_size;
 
-    /*fp = fopen(out_path, "rb");
-    if(fp < 0){ 
-        printf("Error opening %s\n", out_path);
-        return -1;
-    }*/
-
-    /*fseek(fp, 0L, SEEK_END);
-    fsize = ftell(fp);
-    rewind(fp);
-    */
     int ret = 0;
-    rdbuff = calloc(1, fsize+1);
+    rdbuff = calloc(1, fsize);
     if(!rdbuff){
-        //fclose(fp);
         fl.l_type = F_UNLCK;
         fcntl(file_des, F_SETLK, &fl);
         close(file_des);
         printf("flexctl: Memory alloc failed for read file buffer\n");
         return -1;
     }
-    while(1){
-        if(read(file_des, rdbuff, fsize) < 0){
-            printf("flexctl: File %s read failed\n", out_path);
-            fl.l_type = F_UNLCK;
-            fcntl(file_des, F_SETLK, &fl);
-            close(file_des);
-            free(rdbuff);
-            return -1;
-        }
-        printf("\n%s\n",rdbuff);
-        ret += strlen(rdbuff);
-        if(ret > fsize)
-            break;
-        bzero(rdbuff, strlen(rdbuff));
-    }
 
-    /*if(1 != fread(rdbuff, fsize, 1 ,fp)){
-        fclose(fp);
+    if (read(file_des, rdbuff, fsize) < 0){
         printf("flexctl: File %s read failed\n", out_path);
+        fl.l_type = F_UNLCK;
+        fcntl(file_des, F_SETLK, &fl);
+        close(file_des);
         free(rdbuff);
         return -1;
-    }*/
+    }
     
     printf("\n%s\n",rdbuff);
-    /*fclose(fp);
-    sleep(2);*/
     
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
@@ -390,19 +336,6 @@ show(char* name){
         close(file_des);
         return -1;
     }
-
-    /*fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
-        return -1;
-    }*/
-
-    /*if(fprintf(fp, "SHOW,%s", name) < 0){
-        printf("Error writing to %s\n", in_path);
-        fclose(fp);
-        return -1;
-    }
-    fclose(fp);*/
     
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
@@ -441,19 +374,8 @@ show(char* name){
     }
     fsize = stbuff.st_size;
 
-    /*fp = fopen(out_path, "r");
-    if(fp < 0){
-        printf("Error opening %s\n", out_path);
-        return -1;
-    }
-
-    fseek(fp, 0L, SEEK_END);
-    fsize = ftell(fp);
-    rewind(fp);*/
-
     rdbuff = calloc(1, fsize+1);
     if(!rdbuff){
-        //fclose(fp);
         fl.l_type = F_UNLCK;
         fcntl(file_des, F_SETLK, &fl);
         close(file_des);
@@ -471,12 +393,10 @@ show(char* name){
     }
 
     printf("\n%s\n",rdbuff);
-    //fclose(fp);
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
     free(rdbuff);
-    //sleep(2);
     return 0;
 }
 
@@ -512,11 +432,6 @@ set(char* name, char* data){
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
 
-    /*fp = fopen(in_path, "w+");
-    if(fp < 0){
-        printf("Error opening %s\n", in_path);
-        return -1;
-    }*/
     bzero(buffer, 1024);
     if(sprintf(buffer, "SET,%s,%s",name, data) < 0){
         printf("Error writing to %s\n", in_path);
@@ -533,16 +448,9 @@ set(char* name, char* data){
         return -1;
     }
 
-    /*if(fprintf(fp, "SET,%s,%s",name, data) < 0){
-        printf("Error writing to %s\n", in_path);
-        fclose(fp);
-        return -1;
-    }*/
-    //fclose(fp);
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
-    //sleep(2);
     return 0;
 }
 

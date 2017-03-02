@@ -141,25 +141,6 @@ show(char* fname, char* buffer){
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
     return 0;
-
-    /*fp = fopen(fname, "w+");
-    if(fp < 0){
-        syslog(LOG_NOTICE, "flexctl: File %s open failed", fname);
-        fclose(f);
-        return -1;
-    }
-
-    if(fprintf(fp, "%s", rdbuff) < 0){
-        printf("Error writing to %s\n", fname);
-        fclose(f);
-        fclose(fp);
-        return -1;
-    }
-
-    syslog(LOG_NOTICE,"%s", rdbuff);
-    free(rdbuff);
-    fclose(f);
-    fclose(fp);*/
 }
 
 int
@@ -231,23 +212,20 @@ list(char* fname){
 
     fcntl(file_des, F_SETLKW, &fl); //lock file    
 
-    /*fp = fopen(fname, "w+");
-    if(fp < 0){
-        syslog(LOG_NOTICE, "flexctl: File %s open failed", fname);
-        return -1;
-    }*/
-
     for(c = hash_commands; c != NULL; c = c->hh.next){
-        bzero(buffer, 1024);
-        syslog(LOG_NOTICE,"name: %s, dir: %s", c->name, c->dir);
-        if(sprintf(buffer, "name: %s, dir: %s\n", c->name, c->dir) < 0){
+        //bzero(buffer, 1024);
+        syslog(LOG_NOTICE,"flexctl: name: %s, dir: %s", c->name, c->dir);
+        int len = strlen("name: ") + strlen(c->name) + strlen(" ,dir: ") + strlen(c->dir) + strlen("\n");
+        char *output = calloc(1, len);
+        if(sprintf(output, "name: %s, dir: %s\n", c->name, c->dir) < 0){
+        //if(sprintf(output, "name:, dir: \n") < 0){
             syslog(LOG_NOTICE, "flexctl: error printing to buffer in list");
             fl.l_type = F_UNLCK;
             fcntl(file_des, F_SETLK, &fl);
             close(file_des);
             return -1;
         }
-        if(write(file_des, buffer, 1024) < 0){
+        if(write(file_des, output, len) < 0){
             syslog(LOG_NOTICE, "Error writing to %s\n", fname);
             fl.l_type = F_UNLCK;
             fcntl(file_des, F_SETLK, &fl);
@@ -258,7 +236,6 @@ list(char* fname){
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
-    //fclose(fp);
     return 0;
 }
 
@@ -272,11 +249,6 @@ file_handler(){
     off_t file_size;
     struct stat stbuff;
     struct flock fl;
-
-    /*char* in_fname = calloc(1, strlen((char*)input_file_name) + 1);
-    char* out_fname = calloc(1, strlen((char*)output_file_name) + 1);
-    strcpy(in_fname, (char*)input_file_name);
-    strcpy(out_fname, (char*)output_file_name);*/
     
     char* in_fname = "flexctl_in.ctl";
     char* out_fname = "flexctl_out.ctl";
@@ -318,15 +290,6 @@ file_handler(){
         }
         else{
             
-            /*f = fopen(in_fname, "rb");
-            if(f < 0){
-                syslog(LOG_NOTICE, "flexctl: couldn't open file %s", in_fname);
-                if(hash_commands != NULL){
-                    HASH_CLEAR(hh, hash_commands);
-                }
-                exit(EXIT_FAILURE);
-            }*/
-            
             fl.l_type = F_WRLCK;
             fl.l_whence = SEEK_SET;
             fl.l_start = 0;
@@ -350,11 +313,6 @@ file_handler(){
                 continue;
             }
             file_size = stbuff.st_size;
-
-            /*fseek(f, 0L, SEEK_END);
-            fsize = ftell(f);
-            rewind(f);
-            */
             
             syslog(LOG_NOTICE, "flexctl: fsize: %ld", file_size);
 
@@ -367,7 +325,6 @@ file_handler(){
 
             rdbuff = calloc(1, file_size+1);            
             if(!rdbuff){
-                //fclose(f);
                 close(file_des);
                 syslog(LOG_NOTICE,"flexctl: Memory alloc failed for read file buffer");
                 if(hash_commands != NULL){
@@ -379,16 +336,6 @@ file_handler(){
                 exit(EXIT_FAILURE);
             }
 
-            /*if(1 != fread(rdbuff, fsize, 1 ,f)){
-                fclose(f);
-                syslog(LOG_NOTICE,"flexctl: File read failed: %s", in_fname);
-                free(rdbuff);
-                if(hash_commands != NULL){
-                    HASH_CLEAR(hh, hash_commands);
-                }
-                exit(EXIT_FAILURE);
-            }*/
-
             if(read(file_des, rdbuff, file_size) < 1){
                 close(file_des);
                 syslog(LOG_NOTICE,"flexctl: File read failed: %s", in_fname);
@@ -399,11 +346,6 @@ file_handler(){
                 continue;
             }
 
-            //fclose(f);
-            /*fl.l_type = F_UNLCK;
-            fcntl(file_des, F_SETLK, &fl);
-            close(file_des);
-*/
             syslog(LOG_NOTICE, "flexctl: buffer: %s", rdbuff);
 
             switch(rdbuff[0]){
@@ -519,26 +461,13 @@ main(void){
     int length;
     pthread_t flexpath_thread, dpdk_thread;
     
-/*
-    f = fopen(dpdk, "a+");
-    if(f < 0){
-        syslog(LOG_NOTICE, "flexctl: couldn't open and/or create file dpdk.ctl");
-        exit(EXIT_FAILURE);
-    }
-    fclose(f);*/
     ret = pthread_create(&flexpath_thread, NULL, &file_handler, NULL);
     if(ret != 0){
         printf("Error creating thread\n");
         exit(EXIT_FAILURE);
     }
-/*
-    ret = pthread_create(&dpdk_thread, NULL, &file_handler, (void*)dpdk);
-    if(ret != 0){
-        printf("Error creating thread for %s\n", "dpdk.ctl");
-        exit(EXIT_FAILURE);
-    }*/
+
     pthread_join(flexpath_thread, NULL);
-    //pthread_join(dpdk_thread, NULL);
     HASH_CLEAR(hh, hash_commands);
     exit(EXIT_SUCCESS);
 }
