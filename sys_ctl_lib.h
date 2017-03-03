@@ -143,11 +143,18 @@ register_command(char* cmd_buffer){
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
     //open up flexpath.ctl and write register (command name) (file to point to)
-    
-    if (truncate(in_path, 0) == -1){
-        printf("flexctl: couldn't truncate file %s", in_path);
+
+     int fd = inotify_init();
+    if(fd < 0){
+        printf("Failed to init inotify in list_command\n");
         return -1;
     }
+
+    inotify_add_watch(fd, out_path, IN_MODIFY);
+    int EVENT_SIZE = (sizeof(struct inotify_event));
+    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+    char buffer[EVENT_BUF_LEN];
+    
 
     file_des = open(in_path, O_RDWR);
     if(file_des < 0){
@@ -156,6 +163,11 @@ register_command(char* cmd_buffer){
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
+        return -1;
+    }
 
     if (write(file_des, cmd_buffer, strlen(cmd_buffer)) < 0){
         printf("Error writing to %s\n", in_path);
@@ -168,17 +180,6 @@ register_command(char* cmd_buffer){
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
-
-    int fd = inotify_init();
-    if(fd < 0){
-        printf("Failed to init inotify in list_command\n");
-        return -1;
-    }
-
-    inotify_add_watch(fd, out_path, IN_MODIFY);
-    int EVENT_SIZE = (sizeof(struct inotify_event));
-    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
-    char buffer[EVENT_BUF_LEN];
     
     int length = read(fd, buffer, EVENT_BUF_LEN);
     if(length < 0){
@@ -263,10 +264,17 @@ list_command(){
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
 
-    if (truncate(in_path, 0) == -1){
-        printf("flexctl: couldn't truncate file %s", in_path);
+    fd = inotify_init();
+    if(fd < 0){
+        printf("Failed to init inotify in list_command\n");
         return -1;
     }
+
+    inotify_add_watch(fd, out_path, IN_MODIFY);
+    int EVENT_SIZE = (sizeof(struct inotify_event));
+    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+    char buffer[EVENT_BUF_LEN];
+
 
     file_des = open(in_path, O_RDWR);
     if(file_des < 0){
@@ -275,6 +283,11 @@ list_command(){
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
+        return -1;
+    }
     
     if(write(file_des, cmd, strlen(cmd)) < 0){
         printf("Error writing to %s\n", in_path);
@@ -289,16 +302,6 @@ list_command(){
     close(file_des);
 
 
-    fd = inotify_init();
-    if(fd < 0){
-        printf("Failed to init inotify in list_command\n");
-        return -1;
-    }
-
-    inotify_add_watch(fd, out_path, IN_MODIFY);
-    int EVENT_SIZE = (sizeof(struct inotify_event));
-    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
-    char buffer[EVENT_BUF_LEN];
     length = read(fd, buffer, EVENT_BUF_LEN);
     if(length < 0){
         printf("Error detecting changes in file from list_command\n");
@@ -374,10 +377,17 @@ show(char* name){
     sprintf(in_path, "/etc/init/flexctl/%d/flexctl_in.ctl", daemon_pid);
     sprintf(out_path, "/etc/init/flexctl/%d/flexctl_out.ctl", daemon_pid);
 
-    if (truncate(in_path, 0) == -1){
-        printf("flexctl: couldn't truncate file %s", in_path);
+    int fd = inotify_init();
+    if(fd < 0){
+        printf("Failed to init inotify in list_command\n");
         return -1;
     }
+
+    inotify_add_watch(fd, out_path, IN_MODIFY);
+    int EVENT_SIZE = (sizeof(struct inotify_event));
+    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+    char buffer[EVENT_BUF_LEN];
+
 
     file_des = open(in_path, O_RDWR);
     if(file_des < 0){
@@ -386,6 +396,11 @@ show(char* name){
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
+        return -1;
+    }
 
     bzero(cmd, 1024);
     if(sprintf(cmd, "SHOW,%s", name) < 0){
@@ -407,16 +422,7 @@ show(char* name){
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
 
-    int fd = inotify_init();
-    if(fd < 0){
-        printf("Failed to init inotify in list_command\n");
-        return -1;
-    }
 
-    inotify_add_watch(fd, out_path, IN_MODIFY);
-    int EVENT_SIZE = (sizeof(struct inotify_event));
-    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
-    char buffer[EVENT_BUF_LEN];
     int length = read(fd, buffer, EVENT_BUF_LEN);
     if(length < 0){
         printf("Error detecting changes in file from list_command\n");
@@ -487,10 +493,17 @@ set(char* name, char* data){
     fl.l_len = 0;
     fl.l_pid = getpid();
 
-    if (truncate(in_path, 0) == -1){
-        printf("flexctl: couldn't truncate file %s", in_path);
+    int fd = inotify_init();
+    if(fd < 0){
+        printf("Failed to init inotify in list_command\n");
         return -1;
     }
+
+    inotify_add_watch(fd, out_path, IN_MODIFY);
+    int EVENT_SIZE = (sizeof(struct inotify_event));
+    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
+    char buffer[EVENT_BUF_LEN];
+
 
     file_des = open(in_path, O_RDWR);
     if(file_des < 0){
@@ -499,6 +512,11 @@ set(char* name, char* data){
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        printf("flexctl: couldn't truncate file %s", in_path);
+        return -1;
+    }
 
     bzero(buff, 1024);
     if(sprintf(buff, "SET,%s,%s",name, data) < 0){
@@ -519,17 +537,6 @@ set(char* name, char* data){
     fl.l_type = F_UNLCK;
     fcntl(file_des, F_SETLK, &fl);
     close(file_des);
-
-    int fd = inotify_init();
-    if(fd < 0){
-        printf("Failed to init inotify in list_command\n");
-        return -1;
-    }
-
-    inotify_add_watch(fd, out_path, IN_MODIFY);
-    int EVENT_SIZE = (sizeof(struct inotify_event));
-    int EVENT_BUF_LEN = 1024 * (EVENT_SIZE + 16);
-    char buffer[EVENT_BUF_LEN];
     
     int length = read(fd, buffer, EVENT_BUF_LEN);
     if(length < 0){

@@ -67,10 +67,7 @@ register_command(char* fname, char* buffer){
     fl.l_len = 0;
     fl.l_pid = getpid();
 
-    if (truncate(fname, 0) == -1){
-        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
-        return -1;
-    }
+
 
     file_des = open(fname, O_RDWR);
     if(file_des < 0){
@@ -79,6 +76,11 @@ register_command(char* fname, char* buffer){
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
+        return -1;
+    }
     
     if(write(file_des, buff, strlen(buff)) < 0){
         syslog(LOG_NOTICE, "Error writing to %s\n", fname);
@@ -134,7 +136,7 @@ show(char* fname, char* buffer){
         return -1;
     }
 
-    rdbuff = (char*) calloc(fsize, sizeof(char));
+    rdbuff = (char*) calloc(fsize, sizeof(char)); //might need to be +1
     if(!rdbuff){
         fclose(f);
         syslog(LOG_NOTICE,"flexctl: Memory alloc failed for read file buffer");
@@ -161,10 +163,6 @@ show(char* fname, char* buffer){
     fl.l_len = 0;
     fl.l_pid = getpid();
 
-    if (truncate(fname, 0) == -1){
-        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
-        return -1;
-    }
 
     file_des = open(fname, O_RDWR);
     if(file_des < 0){
@@ -173,6 +171,11 @@ show(char* fname, char* buffer){
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
+        return -1;
+    }
     
     if(write(file_des, rdbuff, strlen(rdbuff)) < 0){
         syslog(LOG_NOTICE, "Error writing to %s\n", fname);
@@ -260,9 +263,6 @@ set(char* fname, char* buffer){ //need to implement lock here
     fl.l_len = 0;
     fl.l_pid = getpid();
 
-    if (truncate(fname, 0) == -1){
-        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
-    }
 
     file_des = open(fname, O_RDWR);
     if(file_des < 0){
@@ -271,6 +271,11 @@ set(char* fname, char* buffer){ //need to implement lock here
     }
 
     fcntl(file_des, F_SETLKW, &fl); //lock file
+
+    if(ftruncate(file_des, 0) == -1){
+        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
+        return -1;
+    }
     
     if(write(file_des, buff, strlen(buff)) < 0){
         syslog(LOG_NOTICE, "Error writing to %s You will need to restart CLI", fname);
@@ -303,10 +308,6 @@ list(char* fname){
     fl.l_len = 0;
     fl.l_pid = getpid();
 
-    if (truncate(fname, 0) == -1){
-        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
-        return -1;
-    }
 
     file_des = open(fname, O_RDWR);
     if(file_des < 0){
@@ -314,7 +315,12 @@ list(char* fname){
         return -1;
     }
 
-    fcntl(file_des, F_SETLKW, &fl); //lock file    
+    fcntl(file_des, F_SETLKW, &fl); //lock file   
+
+    if(ftruncate(file_des, 0) == -1){
+        syslog(LOG_NOTICE, "flexctl: couldn't truncate file %s", fname);
+        return -1;
+    } 
 
     for(c = hash_commands; c != NULL; c = c->hh.next){
         //bzero(buffer, 1024);
@@ -429,7 +435,7 @@ file_handler(){
                 continue;
             }
 
-            rdbuff = (char*) calloc(file_size, sizeof(char));            
+            rdbuff = (char*) calloc(file_size, sizeof(char)); //might need to be +1            
             if(!rdbuff){
                 close(file_des);
                 syslog(LOG_NOTICE,"flexctl: Memory alloc failed for read file buffer");
@@ -510,7 +516,7 @@ term(int signum){
 int
 //init_ctl(void){
 main(void){
-    /*pid_t pid, sid;
+    pid_t pid, sid;
 
     pid = fork();
     if (pid < 0) {
@@ -528,9 +534,9 @@ main(void){
     sid = setsid();
     if (sid < 0) {
         exit(EXIT_FAILURE);
-    }*/
+    }
 
-    printf("PID: %d\n", getpid());
+    //printf("PID: %d\n", getpid());
     int ret;
     char dir[23];
     bzero(dir, 23);
