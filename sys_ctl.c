@@ -89,7 +89,7 @@ main(int argc, char** argv){
         tmp_line = calloc(1, strlen(line)+ 1);
         strcpy(tmp_line, line);
         token = strtok(line, sep);
-        sleep(1);
+        //sleep(1);
         if (!(strcmp("REGISTER", token))){
             printf("Register\n");
             token = strtok(NULL, sep);

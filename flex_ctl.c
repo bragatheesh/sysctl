@@ -498,7 +498,7 @@ file_handler(){
             fcntl(file_des, F_SETLK, &fl);
             close(file_des);
             //free(rdbuff); 
-            sleep(3);
+            sleep(1);
         }
 
     }
